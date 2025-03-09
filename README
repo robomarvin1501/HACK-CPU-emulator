@@ -1,4 +1,5 @@
-This is an emulator, which will hopefully eventually replace the emulators provided in the nand2tetris course.
+This is an emulator, which will hopefully eventually provide an optional
+replacement the emulators provided in the nand2tetris course.
 I personally found the Java emulators to be functional, though slow, with many UI problems
 generally linked to the age of the emulator's code. The new web emulators were a non-functional
 mess when I tried to use them. This will hopefully provide a reasonable substitute when it is done.
