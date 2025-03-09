@@ -1,7 +1,7 @@
 use std::{
     fmt::Debug,
     num::Wrapping,
-    ops::{Add, Neg, Not, Sub},
+    ops::{Neg, Not},
     usize,
 };
 

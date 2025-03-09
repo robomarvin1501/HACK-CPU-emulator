@@ -1,6 +1,3 @@
-const LEFT_SHIFT: &'static str = "<<";
-const RIGHT_SHIFT: &'static str = ">>";
-
 #[derive(Debug)]
 pub enum Instruction {
     A(A),
@@ -25,7 +22,6 @@ pub struct C {
     pub dest: String,
     pub comp: String,
     pub jump: String,
-    pub shift: bool,
 }
 
 impl C {
@@ -34,8 +30,6 @@ impl C {
             dest: dest.to_string(),
             comp: comp.to_string(),
             jump: jump.to_string(),
-
-            shift: comp.contains(LEFT_SHIFT) || comp.contains(RIGHT_SHIFT),
         }
     }
 }
