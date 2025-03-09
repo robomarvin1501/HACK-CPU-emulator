@@ -4,7 +4,7 @@ I personally found the Java emulators to be functional, though slow, with many U
 generally linked to the age of the emulator's code. The new web emulators were a non-functional
 mess when I tried to use them. This will hopefully provide a reasonable substitute when it is done.
 
-Currently most basic functionality is complete, in that the emulator can read ASM
+Currently most basic functionality is complete, if untested, in that the emulator can read ASM
 code, and run it. However, there is currently no GUI, no testing, and no debugging
 capabilities. These will be added with time. Also, there are some speed optimisations
 to be done.
