@@ -183,17 +183,3 @@ impl CPUState {
     }
 }
 
-// pub fn compile(
-//     parsed_code: &Vec<instructions::Instruction>,
-//     address_table: &symbol_table::SymbolTable,
-// ) -> Vec<String> {
-//     let mut result: Vec<String> = vec![];
-//     for instr in parsed_code {
-//         match instr {
-//             instructions::Instruction::A(a) => result.push(a_instruction(a, address_table)),
-//             instructions::Instruction::C(c) => result.push(c_instruction(c)),
-//             instructions::Instruction::Label() => {}
-//         }
-//     }
-//     result
-// }
