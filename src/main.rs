@@ -1,33 +1,76 @@
+use core::panic;
 use std::{
+    env,
     fmt::Debug,
+    fs,
+    io::Read,
     num::Wrapping,
     ops::{Neg, Not},
+    path::PathBuf,
     usize,
 };
 
 use instructions::{Instruction, A, C};
-use parser::parse;
+use parser::{parse, MAX_INSTRUCTIONS};
 
 mod instructions;
 mod parser;
 mod symbol_table;
 
+const ASM_FILE_EXTENSION: &'static str = "asm";
+
 fn main() {
-    let instructions = vec![
-        String::from("@15"),
-        String::from("@R10"),
-        String::from("M=A"),
-        String::from("M=M<<"),
-    ];
+    let instructions = read_arg_file();
+
     let mut state = CPUState::new();
 
-    let instructions = parse(&instructions, &mut state.address_table);
+    let instructions = parse(instructions, &mut state.address_table);
     dbg!(&instructions);
 
-    for instr in instructions {
-        state.interpret(&instr);
-        dbg!(state.ram[10]);
+    while state.pc < MAX_INSTRUCTIONS as u16 {
+        dbg!(&instructions[state.pc as usize]);
+        state.interpret(&instructions[state.pc as usize]);
+        dbg!(&state.ram[0..20]);
+        // std::io::stdin().bytes().next();
     }
+}
+
+fn read_arg_file() -> [String; MAX_INSTRUCTIONS] {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        panic!("Invalid usage, please use: cpuemulator <input path>")
+    }
+    let argument_path = env::args().nth(1).expect("No path provided");
+    let argument_path = fs::canonicalize(&argument_path).expect("Invalid path provided");
+    let input_path: PathBuf = if argument_path.is_dir() {
+        panic!("Directories are not supported");
+    } else {
+        argument_path
+    };
+
+    if let Some(extension) = input_path.extension() {
+        if extension.to_str().unwrap_or("").to_lowercase() != ASM_FILE_EXTENSION {
+            panic!("Expected asm file, got {}", extension.to_str().unwrap());
+        }
+    }
+
+    let input_path = PathBuf::from(input_path);
+
+    let contents: String =
+        fs::read_to_string(input_path).expect("Should have been able to read file");
+    let instructions: Vec<String> = contents.split("\n").map(|s| s.trim().to_string()).collect();
+    if instructions.len() > MAX_INSTRUCTIONS {
+        panic!(
+            "Too many instructions, expected a maximum of {}, got {}",
+            MAX_INSTRUCTIONS,
+            instructions.len()
+        );
+    }
+    let mut ret: [String; MAX_INSTRUCTIONS] = [const { String::new() }; MAX_INSTRUCTIONS];
+    for (i, instruction) in instructions.iter().enumerate() {
+        ret[i] = instruction.to_string();
+    }
+    ret
 }
 
 #[derive(Debug)]
@@ -35,7 +78,7 @@ struct CPUState {
     a: Wrapping<i16>,
     d: Wrapping<i16>,
     pc: u16,
-    ram: [Wrapping<i16>; 32768],
+    ram: [Wrapping<i16>; MAX_INSTRUCTIONS],
     address_table: symbol_table::SymbolTable,
 }
 
@@ -49,11 +92,13 @@ impl CPUState {
             address_table: symbol_table::SymbolTable::new(),
         }
     }
+
     pub fn interpret(self: &mut Self, instruction: &Instruction) {
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),
             Instruction::C(c) => self.c_instruction(&c),
-            Instruction::Label() => {},
+            Instruction::Label() => self.pc += 1,
+            Instruction::None => self.pc += 1,
         }
     }
 
@@ -63,6 +108,7 @@ impl CPUState {
             Some(loc) => self.a = Wrapping((*loc) as i16),
             None => panic!("Invalid instruction: {:?}", a),
         }
+        self.pc += 1;
     }
 
     fn c_instruction(self: &mut Self, c: &C) {
@@ -133,53 +179,52 @@ impl CPUState {
         }
 
         self.pc = match c.jump.as_str() {
-            "" => self.pc,
+            "" => self.pc + 1,
             "JGT" => {
-                if answer > Wrapping(0) {
-                    answer.0 as u16
+                if answer > Wrapping(0) { // TODO check that A > 0?
+                    self.a.0 as u16
                 } else {
-                    self.pc
+                    self.pc + 1
                 }
             }
             "JEQ" => {
                 if answer == Wrapping(0) {
-                    answer.0 as u16
+                    self.a.0 as u16
                 } else {
-                    self.pc
+                    self.pc + 1
                 }
             }
             "JGE" => {
                 if answer >= Wrapping(0) {
-                    answer.0 as u16
+                    self.a.0 as u16
                 } else {
-                    self.pc
+                    self.pc + 1
                 }
             }
             "JLT" => {
                 if answer < Wrapping(0) {
-                    answer.0 as u16
+                    self.a.0 as u16
                 } else {
-                    self.pc
+                    self.pc + 1
                 }
             }
             "JNE" => {
                 if answer != Wrapping(0) {
-                    answer.0 as u16
+                    self.a.0 as u16
                 } else {
-                    self.pc
+                    self.pc + 1
                 }
             }
             "JLE" => {
                 if answer <= Wrapping(0) {
-                    answer.0 as u16
+                    self.a.0 as u16
                 } else {
-                    self.pc
+                    self.pc + 1
                 }
             }
-            "JMP" => answer.0 as u16,
+            "JMP" => self.a.0 as u16,
 
             _ => panic!("Invalid jump command: {}", c.jump),
         };
     }
 }
-

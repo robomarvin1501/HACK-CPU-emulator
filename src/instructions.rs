@@ -3,6 +3,7 @@ pub enum Instruction {
     A(A),
     Label(),
     C(C),
+    None,
 }
 
 #[derive(Debug)]
