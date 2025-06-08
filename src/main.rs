@@ -3,14 +3,13 @@ use std::{
     env,
     fmt::Debug,
     fs,
-    io::Read,
     num::Wrapping,
     ops::{Neg, Not},
     path::PathBuf,
     usize,
 };
 
-use instructions::{Instruction, A, C};
+use instructions::{Destination, Instruction, A, C};
 use parser::{parse, MAX_INSTRUCTIONS};
 
 mod instructions;
@@ -153,35 +152,35 @@ impl CPUState {
             _ => panic!("Invalid instruction {}", c.comp),
         };
 
-        match c.dest.as_str() {
-            "" => {}
-            "A" => self.a = answer,
-            "M" => self.ram[self.a.0 as usize] = answer,
-            "D" => self.d = answer,
-            "MD" => {
+        match c.dest {
+            Destination::None => {}
+            Destination::A => self.a = answer,
+            Destination::M => self.ram[self.a.0 as usize] = answer,
+            Destination::D => self.d = answer,
+            Destination::MD => {
                 self.ram[self.a.0 as usize] = answer;
                 self.d = answer;
             }
-            "AM" => {
+            Destination::AM => {
                 self.ram[self.a.0 as usize] = answer;
                 self.a = answer;
             }
-            "AD" => {
+            Destination::AD => {
                 self.a = answer;
                 self.d = answer;
             }
-            "AMD" => {
+            Destination::AMD => {
                 self.ram[self.a.0 as usize] = answer;
                 self.a = answer;
                 self.d = answer;
             }
-            _ => panic!("Unrecognised destination: {}", c.dest),
         }
 
         self.pc = match c.jump.as_str() {
             "" => self.pc + 1,
             "JGT" => {
-                if answer > Wrapping(0) { // TODO check that A > 0?
+                if answer > Wrapping(0) {
+                    // TODO check that A > 0?
                     self.a.0 as u16
                 } else {
                     self.pc + 1
