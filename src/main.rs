@@ -9,7 +9,7 @@ use std::{
     usize,
 };
 
-use instructions::{Destination, Instruction, A, C};
+use instructions::{Destination, Instruction, A, C, Jump};
 use parser::{parse, MAX_INSTRUCTIONS};
 
 mod instructions;
@@ -176,9 +176,9 @@ impl CPUState {
             }
         }
 
-        self.pc = match c.jump.as_str() {
-            "" => self.pc + 1,
-            "JGT" => {
+        self.pc = match c.jump {
+            Jump::None => self.pc + 1,
+            Jump::JGT => {
                 if answer > Wrapping(0) {
                     // TODO check that A > 0?
                     self.a.0 as u16
@@ -186,44 +186,42 @@ impl CPUState {
                     self.pc + 1
                 }
             }
-            "JEQ" => {
+            Jump::JEQ => {
                 if answer == Wrapping(0) {
                     self.a.0 as u16
                 } else {
                     self.pc + 1
                 }
             }
-            "JGE" => {
+            Jump::JGE => {
                 if answer >= Wrapping(0) {
                     self.a.0 as u16
                 } else {
                     self.pc + 1
                 }
             }
-            "JLT" => {
+            Jump::JLT => {
                 if answer < Wrapping(0) {
                     self.a.0 as u16
                 } else {
                     self.pc + 1
                 }
             }
-            "JNE" => {
+            Jump::JNE => {
                 if answer != Wrapping(0) {
                     self.a.0 as u16
                 } else {
                     self.pc + 1
                 }
             }
-            "JLE" => {
+            Jump::JLE => {
                 if answer <= Wrapping(0) {
                     self.a.0 as u16
                 } else {
                     self.pc + 1
                 }
             }
-            "JMP" => self.a.0 as u16,
-
-            _ => panic!("Invalid jump command: {}", c.jump),
+            Jump::JMP => self.a.0 as u16,
         };
     }
 }

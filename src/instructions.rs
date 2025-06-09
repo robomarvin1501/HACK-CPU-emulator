@@ -47,10 +47,38 @@ impl Destination {
 }
 
 #[derive(Debug)]
+pub enum Jump {
+    None,
+    JGT,
+    JEQ,
+    JGE,
+    JLT,
+    JNE,
+    JLE,
+    JMP,
+}
+
+impl Jump {
+    fn new(jump: &str) -> Jump {
+        match jump {
+            "" => Jump::None,
+            "JGT" => Jump::JGT,
+            "JEQ" => Jump::JEQ,
+            "JGE" => Jump::JGE,
+            "JLT" => Jump::JLT,
+            "JNE" => Jump::JNE,
+            "JLE" => Jump::JLE,
+            "JMP" => Jump::JMP,
+            _ => panic!("Parse error: {} is not a valid jump instruction", jump),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct C {
     pub dest: Destination,
     pub comp: String,
-    pub jump: String,
+    pub jump: Jump,
 }
 
 impl C {
@@ -58,7 +86,7 @@ impl C {
         Self {
             dest: Destination::new(dest),
             comp: comp.to_string(),
-            jump: jump.to_string(),
+            jump: Jump::new(jump),
         }
     }
 }
