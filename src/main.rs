@@ -1,15 +1,17 @@
 use core::panic;
 use std::{
     env,
+    error::Error,
     fmt::Debug,
     fs,
+    io::Read,
     num::Wrapping,
     ops::{Neg, Not},
     path::PathBuf,
     usize,
 };
 
-use instructions::{Destination, Instruction, A, C, Jump};
+use instructions::{Comp, Destination, Instruction, Jump, A, C};
 use parser::{parse, MAX_INSTRUCTIONS};
 
 mod instructions;
@@ -30,7 +32,7 @@ fn main() {
         dbg!(&instructions[state.pc as usize]);
         state.interpret(&instructions[state.pc as usize]);
         dbg!(&state.ram[0..20]);
-        // std::io::stdin().bytes().next();
+        std::io::stdin().bytes().next();
     }
 }
 
@@ -96,8 +98,7 @@ impl CPUState {
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),
             Instruction::C(c) => self.c_instruction(&c),
-            Instruction::Label() => self.pc += 1,
-            Instruction::None => self.pc += 1,
+            Instruction::Label() | Instruction::None => self.pc += 1,
         }
     }
 
@@ -111,45 +112,43 @@ impl CPUState {
     }
 
     fn c_instruction(self: &mut Self, c: &C) {
-        let answer: Wrapping<i16> = match c.comp.as_str() {
-            "0" => Wrapping(0),
-            "1" => Wrapping(1),
-            "-1" => Wrapping(-1),
-            "D" => self.d,
-            "A" => self.a,
-            "!D" => self.d.not(),
-            "!A" => self.a.not(),
-            "-D" => -self.d,
-            "-A" => -(self.a),
-            "D+1" => self.d + Wrapping(1),
-            "A+1" => self.a + Wrapping(1),
-            "D-1" => self.d + Wrapping(1),
-            "A-1" => self.a + Wrapping(1),
-            "D+A" => self.d + self.a,
-            "D-A" => self.d - self.a,
-            "A-D" => self.a - self.d,
-            "D&A" => self.d & self.a,
-            "D|A" => self.d | self.a,
+        let answer: Wrapping<i16> = match c.comp {
+            Comp::Zero => Wrapping(0),
+            Comp::One => Wrapping(1),
+            Comp::MinusOne => Wrapping(-1),
+            Comp::D => self.d,
+            Comp::A => self.a,
+            Comp::NotD => self.d.not(),
+            Comp::NotA => self.a.not(),
+            Comp::MinusD => -self.d,
+            Comp::MinusA => -(self.a),
+            Comp::DPlusOne => self.d + Wrapping(1),
+            Comp::APlusOne => self.a + Wrapping(1),
+            Comp::DMinusOne => self.d + Wrapping(1),
+            Comp::AMinusOne => self.a + Wrapping(1),
+            Comp::DPlusA => self.d + self.a,
+            Comp::DMinusA => self.d - self.a,
+            Comp::AMinusD => self.a - self.d,
+            Comp::DAndA => self.d & self.a,
+            Comp::DOrA => self.d | self.a,
 
-            "M" => self.ram[self.a.0 as usize],
-            "!M" => self.ram[self.a.0 as usize].not(),
-            "-M" => self.ram[self.a.0 as usize].neg(),
-            "M+1" => self.ram[self.a.0 as usize] + Wrapping(1),
-            "M-1" => self.ram[self.a.0 as usize] - Wrapping(1),
-            "D+M" => self.d + self.ram[self.a.0 as usize],
-            "D-M" => self.d - self.ram[self.a.0 as usize],
-            "M-D" => self.ram[self.a.0 as usize] - self.d,
-            "D&M" => self.ram[self.a.0 as usize] & self.d,
-            "D|M" => self.ram[self.a.0 as usize] | self.d,
+            Comp::M => self.ram[self.a.0 as usize],
+            Comp::NotM => self.ram[self.a.0 as usize].not(),
+            Comp::MinusM => self.ram[self.a.0 as usize].neg(),
+            Comp::MPlusOne => self.ram[self.a.0 as usize] + Wrapping(1),
+            Comp::MMinusOne => self.ram[self.a.0 as usize] - Wrapping(1),
+            Comp::DPlusM => self.d + self.ram[self.a.0 as usize],
+            Comp::DMinusM => self.d - self.ram[self.a.0 as usize],
+            Comp::MMinusD => self.ram[self.a.0 as usize] - self.d,
+            Comp::DAndM => self.ram[self.a.0 as usize] & self.d,
+            Comp::DOrM => self.ram[self.a.0 as usize] | self.d,
 
-            "A<<" => self.a << 1,
-            "D<<" => self.d << 1,
-            "M<<" => self.ram[self.a.0 as usize] << 1,
-            "A>>" => self.a >> 1,
-            "D>>" => self.d >> 1,
-            "M>>" => self.ram[self.a.0 as usize] >> 1,
-
-            _ => panic!("Invalid instruction {}", c.comp),
+            Comp::LeftShiftA => self.a << 1,
+            Comp::LeftShiftD => self.d << 1,
+            Comp::LeftShiftM => self.ram[self.a.0 as usize] << 1,
+            Comp::RightShiftA => self.a >> 1,
+            Comp::RightShiftD => self.d >> 1,
+            Comp::RightShiftM => self.ram[self.a.0 as usize] >> 1,
         };
 
         match c.dest {
