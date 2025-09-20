@@ -10,11 +10,15 @@ const VARIABLE_DECLARATION: char = '@';
 
 pub const MAX_INSTRUCTIONS: usize = 32768;
 
-pub fn parse(lines: [String; MAX_INSTRUCTIONS], address_table: &mut SymbolTable) -> [Instruction; MAX_INSTRUCTIONS] {
+pub fn parse(
+    lines: [String; MAX_INSTRUCTIONS],
+    address_table: &mut SymbolTable,
+) -> [Instruction; MAX_INSTRUCTIONS] {
     let whitespace_cleaned_lines = clear_whitespace(lines);
     labels_and_variables(&whitespace_cleaned_lines, address_table);
 
-    let mut parsed_lines: [Instruction; MAX_INSTRUCTIONS] = [const { Instruction::None }; MAX_INSTRUCTIONS];
+    let mut parsed_lines: [Instruction; MAX_INSTRUCTIONS] =
+        [const { Instruction::None }; MAX_INSTRUCTIONS];
     for (i, line) in whitespace_cleaned_lines.iter().enumerate() {
         if line.is_empty() {
             continue;
@@ -52,7 +56,8 @@ fn split_line(line: &String) -> Vec<&str> {
 }
 
 fn clear_whitespace(lines: [String; MAX_INSTRUCTIONS]) -> [String; MAX_INSTRUCTIONS] {
-    let mut whitespace_cleaned_lines: [String; MAX_INSTRUCTIONS] = [const { String::new() }; MAX_INSTRUCTIONS];
+    let mut whitespace_cleaned_lines: [String; MAX_INSTRUCTIONS] =
+        [const { String::new() }; MAX_INSTRUCTIONS];
     let mut count = 0;
     for (i, line) in lines.iter().enumerate() {
         if line.is_empty() || line.starts_with(COMMENT_BEGIN) {
