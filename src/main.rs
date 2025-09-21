@@ -21,6 +21,7 @@ use glium::{
     glutin::surface::WindowSurface,
     texture::{ClientFormat, RawImage2d},
     uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior},
+    winit::keyboard::SmolStr,
     Display, Texture2d,
 };
 use imgui::*;
@@ -36,6 +37,7 @@ const SCREEN_WIDTH: usize = 512;
 const SCREEN_HEIGHT: usize = 256;
 const SCREEN_LOCATION: usize = 16384;
 const SCREEN_LENGTH: usize = 8192;
+const KBD_LOCATION: usize = 24576;
 
 fn main() {
     let instructions = read_arg_file();
@@ -67,10 +69,10 @@ fn main() {
                 .register_textures(display.get_context(), renderer.textures())
                 .expect("Failed to register textures");
         },
-        move |_, ui, renderer, display| {
+        move |_, ui, renderer, display, key| {
             cpu_display
                 .borrow_mut()
-                .show_textures(ui, renderer, display);
+                .show_textures(ui, renderer, display, key);
         },
     );
 
@@ -308,7 +310,16 @@ impl HackGUI {
         ui: &Ui,
         renderer: &mut Renderer,
         display: &Display<WindowSurface>,
+        key: &Option<SmolStr>,
     ) {
+        if let Some(kbd_letter) = key {
+            self.cpu.ram[KBD_LOCATION] = match kbd_letter.to_owned().as_str() {
+                "a" => Wrapping(97),
+                _ => Wrapping(1),
+            };
+        } else {
+            self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+        }
         ui.window("Controls")
             .size([100.0, 100.0], Condition::FirstUseEver)
             .build(|| {
