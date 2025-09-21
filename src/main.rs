@@ -458,16 +458,17 @@ where
 }
 
 fn get_pixel(screen: &[Wrapping<i16>], row: usize, col: usize) -> bool {
+    // Width * row + col (col / 16 because each number is 16 pixels wide)
     let word_index = row * 32 + (col / 16);
     let bit_index = col % 16;
-    let word = screen[word_index].0 as u16;
+    let word = screen[word_index].0;
     ((word >> bit_index) & 1) == 1
 }
 
 fn hack_to_rgba(screen: &[Wrapping<i16>]) -> Vec<u8> {
-    let mut framebuffer = Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT);
-    for col in 0..SCREEN_WIDTH {
-        for row in 0..SCREEN_HEIGHT {
+    let mut framebuffer: Vec<u8> = Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT);
+    for row in 0..SCREEN_HEIGHT {
+        for col in 0..SCREEN_WIDTH {
             let p = get_pixel(screen, row, col);
             let colour = if p { 0u8 } else { 255u8 };
             // Insert RGB values
