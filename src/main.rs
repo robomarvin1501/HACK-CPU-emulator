@@ -1,7 +1,7 @@
 use core::panic;
 use instructions::{Comp, Destination, Instruction, Jump, A, C};
 use parser::{parse, MAX_INSTRUCTIONS};
-use sdl2::render;
+use sdl2::{libc::if_nameindex, render};
 use std::{
     env,
     error::Error,
@@ -11,6 +11,7 @@ use std::{
     num::Wrapping,
     ops::{Neg, Not},
     path::PathBuf,
+    thread::panicking,
     usize,
 };
 mod instructions;
@@ -21,7 +22,7 @@ use glium::{
     glutin::surface::WindowSurface,
     texture::{ClientFormat, RawImage2d},
     uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior},
-    winit::keyboard::SmolStr,
+    winit::keyboard::{Key, NamedKey},
     Display, Texture2d,
 };
 use imgui::*;
@@ -38,6 +39,33 @@ const SCREEN_HEIGHT: usize = 256;
 const SCREEN_LOCATION: usize = 16384;
 const SCREEN_LENGTH: usize = 8192;
 const KBD_LOCATION: usize = 24576;
+
+// Key codes
+const NEWLINE_KEY: i16 = 128;
+const BACKSPACE_KEY: i16 = 129;
+const LEFT_KEY: i16 = 130;
+const UP_KEY: i16 = 131;
+const RIGHT_KEY: i16 = 132;
+const DOWN_KEY: i16 = 133;
+const HOME_KEY: i16 = 134;
+const END_KEY: i16 = 135;
+const PAGE_UP_KEY: i16 = 136;
+const PAGE_DOWN_KEY: i16 = 137;
+const INSERT_KEY: i16 = 138;
+const DELETE_KEY: i16 = 139;
+const ESC_KEY: i16 = 140;
+const F1_KEY: i16 = 141;
+const F2_KEY: i16 = 142;
+const F3_KEY: i16 = 143;
+const F4_KEY: i16 = 144;
+const F5_KEY: i16 = 145;
+const F6_KEY: i16 = 146;
+const F7_KEY: i16 = 147;
+const F8_KEY: i16 = 148;
+const F9_KEY: i16 = 149;
+const F10_KEY: i16 = 150;
+const F11_KEY: i16 = 151;
+const F12_KEY: i16 = 152;
 
 fn main() {
     let instructions = read_arg_file();
@@ -310,21 +338,70 @@ impl HackGUI {
         ui: &Ui,
         renderer: &mut Renderer,
         display: &Display<WindowSurface>,
-        key: &Option<SmolStr>,
+        key: &Option<Key>,
     ) {
-        if let Some(kbd_letter) = key {
-            self.cpu.ram[KBD_LOCATION] = match kbd_letter.to_owned().as_str() {
-                "a" => Wrapping(97),
-                _ => Wrapping(1),
-            };
-        } else {
-            self.cpu.ram[KBD_LOCATION] = Wrapping(0);
-        }
         ui.window("Controls")
             .size([100.0, 100.0], Condition::FirstUseEver)
             .build(|| {
                 if ui.button("Step") {
                     self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
+                    if let Some(kbd_letter) = key {
+                        self.cpu.ram[KBD_LOCATION] = match kbd_letter.to_owned() {
+                            Key::Character(c) => {
+                                if c.len() == 1 {
+                                    let ch = c.chars().next().unwrap();
+                                    let key_code = ch as i16;
+
+                                    if ch.is_ascii_uppercase() || ch.is_ascii_lowercase() {
+                                        Wrapping(key_code)
+                                    } else {
+                                        match key_code {
+                                            BACKSPACE_KEY => Wrapping(BACKSPACE_KEY),
+                                            NEWLINE_KEY => Wrapping(NEWLINE_KEY),
+                                            ESC_KEY => Wrapping(ESC_KEY),
+                                            DELETE_KEY => Wrapping(DELETE_KEY),
+                                            _ => Wrapping(key_code),
+                                        }
+                                    }
+                                } else {
+                                    // Should not occur
+                                    Wrapping(0)
+                                }
+                            }
+                            Key::Named(n) => match n {
+                                NamedKey::Space => Wrapping(32),
+                                NamedKey::Backspace => Wrapping(BACKSPACE_KEY),
+                                NamedKey::Enter => Wrapping(NEWLINE_KEY),
+                                NamedKey::Escape => Wrapping(ESC_KEY),
+                                NamedKey::Delete => Wrapping(DELETE_KEY),
+                                NamedKey::ArrowLeft => Wrapping(LEFT_KEY),
+                                NamedKey::ArrowRight => Wrapping(RIGHT_KEY),
+                                NamedKey::ArrowUp => Wrapping(UP_KEY),
+                                NamedKey::ArrowDown => Wrapping(DOWN_KEY),
+                                NamedKey::PageUp => Wrapping(PAGE_UP_KEY),
+                                NamedKey::PageDown => Wrapping(PAGE_DOWN_KEY),
+                                NamedKey::Home => Wrapping(HOME_KEY),
+                                NamedKey::End => Wrapping(END_KEY),
+                                NamedKey::F1 => Wrapping(F1_KEY),
+                                NamedKey::F2 => Wrapping(F2_KEY),
+                                NamedKey::F3 => Wrapping(F3_KEY),
+                                NamedKey::F4 => Wrapping(F4_KEY),
+                                NamedKey::F5 => Wrapping(F5_KEY),
+                                NamedKey::F6 => Wrapping(F6_KEY),
+                                NamedKey::F7 => Wrapping(F7_KEY),
+                                NamedKey::F8 => Wrapping(F8_KEY),
+                                NamedKey::F9 => Wrapping(F9_KEY),
+                                NamedKey::F10 => Wrapping(F10_KEY),
+                                NamedKey::F11 => Wrapping(F11_KEY),
+                                NamedKey::F12 => Wrapping(F12_KEY),
+                                NamedKey::Insert => Wrapping(INSERT_KEY),
+                                _ => Wrapping(0),
+                            },
+                            _ => Wrapping(0),
+                        };
+                    } else {
+                        self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+                    }
                     //     dbg!(&instructions[state.pc as usize]);
                     //     state.interpret(&instructions[state.pc as usize]);
                     //     dbg!(&state.ram[0..20]);

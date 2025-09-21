@@ -16,8 +16,6 @@ pub fn parse(
 ) -> [Instruction; MAX_INSTRUCTIONS] {
     let whitespace_cleaned_lines = clear_whitespace(lines);
     labels_and_variables(&whitespace_cleaned_lines, address_table);
-    dbg!(&address_table.table);
-
     let mut parsed_lines: [Instruction; MAX_INSTRUCTIONS] =
         [const { Instruction::None }; MAX_INSTRUCTIONS];
     let mut offset = 0;

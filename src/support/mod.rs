@@ -1,5 +1,5 @@
 use glium::glutin::surface::WindowSurface;
-use glium::winit::keyboard::SmolStr;
+use glium::winit::keyboard::Key;
 use glium::{Display, Surface};
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_glium_renderer::Renderer;
@@ -17,7 +17,7 @@ pub const FONT_SIZE: f32 = 13.0;
 
 #[allow(dead_code)] // annoyingly, RA yells that this is unusued
 pub fn simple_init<
-    F: FnMut(&mut bool, &mut Ui, &mut Renderer, &Display<WindowSurface>, &Option<SmolStr>) + 'static,
+    F: FnMut(&mut bool, &mut Ui, &mut Renderer, &Display<WindowSurface>, &Option<Key>) + 'static,
 >(
     title: &str,
     run_ui: F,
@@ -28,8 +28,7 @@ pub fn simple_init<
 pub fn init_with_startup<FInit, FUi>(title: &str, mut startup: FInit, mut run_ui: FUi)
 where
     FInit: FnMut(&mut Context, &mut Renderer, &Display<WindowSurface>) + 'static,
-    FUi: FnMut(&mut bool, &mut Ui, &mut Renderer, &Display<WindowSurface>, &Option<SmolStr>)
-        + 'static,
+    FUi: FnMut(&mut bool, &mut Ui, &mut Renderer, &Display<WindowSurface>, &Option<Key>) + 'static,
 {
     let mut imgui = create_context();
 
@@ -72,7 +71,7 @@ where
 
     startup(&mut imgui, &mut renderer, &display);
 
-    let mut key_pressed: Option<SmolStr> = None;
+    let mut key_pressed: Option<Key> = None;
 
     #[allow(deprecated)]
     event_loop
@@ -126,7 +125,7 @@ where
                 event: WindowEvent::KeyboardInput { event, .. },
                 ..
             } => {
-                if let Some(key) = event.text {
+                if let key = event.logical_key {
                     match event.state {
                         glium::winit::event::ElementState::Pressed => key_pressed = Some(key),
                         glium::winit::event::ElementState::Released => key_pressed = None,
