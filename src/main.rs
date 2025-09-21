@@ -1,6 +1,7 @@
 use core::panic;
 use instructions::{Comp, Destination, Instruction, Jump, A, C};
 use parser::{parse, MAX_INSTRUCTIONS};
+use sdl2::render;
 use std::{
     env,
     error::Error,
@@ -17,12 +18,13 @@ mod parser;
 mod symbol_table;
 use glium::{
     backend::Facade,
+    glutin::surface::WindowSurface,
     texture::{ClientFormat, RawImage2d},
     uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior},
-    Texture2d,
+    Display, Texture2d,
 };
 use imgui::*;
-use imgui_glium_renderer::Texture;
+use imgui_glium_renderer::{Renderer, Texture};
 use std::borrow::Cow;
 use std::io::Cursor;
 use std::rc::Rc;
@@ -41,10 +43,19 @@ fn main() {
     let mut state = CPUState::new();
     let instructions = parse(instructions, &mut state.address_table);
 
+    let num_labels = instructions
+        .iter()
+        .filter(|&x| match x {
+            Instruction::Label(_) => true,
+            _ => false,
+        })
+        .count();
+
     let cpu_display = std::rc::Rc::new(std::cell::RefCell::new(HackGUI {
         screen_texture_id: None,
         cpu: state,
         instructions: instructions,
+        num_labels: num_labels,
     }));
     let cpu_display_clone = cpu_display.clone();
 
@@ -56,8 +67,10 @@ fn main() {
                 .register_textures(display.get_context(), renderer.textures())
                 .expect("Failed to register textures");
         },
-        move |_, ui| {
-            cpu_display.borrow_mut().show_textures(ui);
+        move |_, ui, renderer, display| {
+            cpu_display
+                .borrow_mut()
+                .show_textures(ui, renderer, display);
         },
     );
 
@@ -134,16 +147,19 @@ impl CPUState {
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),
             Instruction::C(c) => self.c_instruction(&c),
-            Instruction::Label() | Instruction::None => self.pc += 1,
+            Instruction::Label(_) | Instruction::None => self.pc += 1,
         }
     }
 
     fn a_instruction(self: &mut Self, a: &A) {
-        let destination = self.address_table.table.get(&a.dest);
-        match destination {
-            Some(loc) => self.a = Wrapping((*loc) as i16),
-            None => panic!("Invalid instruction: {:?}", a),
-        }
+        let destination = match a.dest.parse::<u16>() {
+            Ok(d) => d,
+            Err(_) => match self.address_table.table.get(&a.dest) {
+                Some(loc) => loc.to_owned(),
+                None => panic!("Invalid instruction: {:?}", a),
+            },
+        };
+        self.a = Wrapping(destination as i16);
         self.pc += 1;
     }
 
@@ -265,6 +281,7 @@ struct HackGUI {
     screen_texture_id: Option<TextureId>,
     cpu: CPUState,
     instructions: [Instruction; MAX_INSTRUCTIONS],
+    num_labels: usize,
 }
 
 impl HackGUI {
@@ -286,7 +303,12 @@ impl HackGUI {
         Ok(())
     }
 
-    fn show_textures(&mut self, ui: &Ui) {
+    fn show_textures(
+        &mut self,
+        ui: &Ui,
+        renderer: &mut Renderer,
+        display: &Display<WindowSurface>,
+    ) {
         ui.window("Controls")
             .size([100.0, 100.0], Condition::FirstUseEver)
             .build(|| {
@@ -297,25 +319,38 @@ impl HackGUI {
                     //     dbg!(&state.ram[0..20]);
                     //     std::io::stdin().bytes().next();
                 }
+                if ui.button("Reset") {
+                    self.cpu.pc = 0;
+                }
+                ui.text(format!("A: {}", self.cpu.a));
+                ui.text(format!("D: {}", self.cpu.d));
+                ui.text(format!("PC: {}", self.cpu.pc));
             });
-        // TODO not going to update with each frame, need to draw the texture here
         ui.window("Screen")
             .size(
                 [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32],
                 Condition::FirstUseEver,
             )
-            .build(|| {
-                if let Some(my_texture_id) = self.screen_texture_id {
-                    Image::new(my_texture_id, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32])
-                        .build(ui);
+            .build(|| -> Result<(), Box<dyn Error>> {
+                // Replace the screen texture
+                if let Some(sti) = self.screen_texture_id {
+                    // Remove old texture
+                    renderer.textures().remove(sti);
+
+                    let texture = generate_screen_texture(&self.cpu, display.get_context())?;
+                    let texture_id = renderer.textures().insert(texture);
+                    self.screen_texture_id = Some(texture_id);
+
+                    Image::new(texture_id, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
                 }
+                Ok(())
             });
 
         ui.window("Program view")
             .size([100.0, 500.0], Condition::FirstUseEver)
             .build(|| {
                 let num_cols = 2;
-                let num_rows = MAX_INSTRUCTIONS as i32;
+                let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
 
                 let flags = imgui::TableFlags::ROW_BG
                     | imgui::TableFlags::RESIZABLE
@@ -334,12 +369,29 @@ impl HackGUI {
                     ui.table_headers_row();
 
                     let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                    let mut offset = 0;
                     for row_num in clip.iter() {
                         ui.table_next_row();
                         ui.table_set_column_index(0);
-                        ui.text(format!("{}", row_num));
-                        ui.table_set_column_index(1);
-                        ui.text(format!("{}", 0));
+                        if (row_num - offset) as u16 == self.cpu.pc {
+                            ui.table_set_bg_color(
+                                TableBgTarget::ROW_BG1,
+                                ImColor32::from_rgb(100, 100, 0),
+                            );
+                        }
+                        match self.instructions[row_num as usize] {
+                            Instruction::Label(_) => {
+                                offset += 1;
+                                ui.text("");
+                                ui.table_set_column_index(1);
+                                ui.text(format!("{}", self.instructions[row_num as usize]));
+                            }
+                            Instruction::A(_) | Instruction::C(_) | Instruction::None => {
+                                ui.text(format!("{}", row_num - offset));
+                                ui.table_set_column_index(1);
+                                ui.text(format!("{}", self.instructions[row_num as usize]));
+                            }
+                        }
                     }
                 }
             });
@@ -372,7 +424,7 @@ impl HackGUI {
                         ui.table_set_column_index(0);
                         ui.text(format!("{}", row_num));
                         ui.table_set_column_index(1);
-                        ui.text(format!("{}", 0));
+                        ui.text(format!("{}", self.cpu.ram[row_num as usize]));
                     }
                 }
             });

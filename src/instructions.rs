@@ -1,12 +1,25 @@
-#[derive(Debug)]
+use core::fmt;
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum Instruction {
     A(A),
-    Label(),
+    Label(String),
     C(C),
     None,
 }
 
-#[derive(Debug)]
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Instruction::A(a) => write!(f, "{}", a),
+            Instruction::C(c) => writeln!(f, "{}", c),
+            Instruction::Label(l) => write!(f, "({})", l),
+            Instruction::None => write!(f, ""),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct A {
     pub dest: String,
 }
@@ -15,6 +28,12 @@ impl A {
         Self {
             dest: dest.to_string(),
         }
+    }
+}
+
+impl fmt::Display for A {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "@{}", self.dest)
     }
 }
 
@@ -46,6 +65,22 @@ impl Destination {
     }
 }
 
+impl fmt::Display for Destination {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Destination::None => "",
+            Destination::A => "A",
+            Destination::M => "M",
+            Destination::D => "D",
+            Destination::MD => "MD",
+            Destination::AM => "AM",
+            Destination::AD => "AD",
+            Destination::AMD => "AMD",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Jump {
     None,
@@ -71,6 +106,22 @@ impl Jump {
             "JMP" => Jump::JMP,
             _ => panic!("Parse error: {} is not a valid jump instruction", jump),
         }
+    }
+}
+
+impl fmt::Display for Jump {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Jump::None => "",
+            Jump::JGT => "JGT",
+            Jump::JEQ => "JEQ",
+            Jump::JGE => "JGE",
+            Jump::JLT => "JLT",
+            Jump::JNE => "JNE",
+            Jump::JLE => "JLE",
+            Jump::JMP => "JMP",
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -162,7 +213,51 @@ impl Comp {
     }
 }
 
-#[derive(Debug)]
+impl fmt::Display for Comp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Comp::Zero => "0",
+            Comp::One => "1",
+            Comp::MinusOne => "-1",
+            Comp::D => "D",
+            Comp::A => "A",
+            Comp::NotD => "!D",
+            Comp::NotA => "!A",
+            Comp::MinusD => "-D",
+            Comp::MinusA => "-A",
+            Comp::DPlusOne => "D+1",
+            Comp::APlusOne => "A+1",
+            Comp::DMinusOne => "D-1",
+            Comp::AMinusOne => "A-1",
+            Comp::DPlusA => "D+A",
+            Comp::DMinusA => "D-A",
+            Comp::AMinusD => "A-D",
+            Comp::DAndA => "D&A",
+            Comp::DOrA => "D|A",
+
+            Comp::M => "M",
+            Comp::NotM => "!M",
+            Comp::MinusM => "-M",
+            Comp::MPlusOne => "M+1",
+            Comp::MMinusOne => "M-1",
+            Comp::DPlusM => "D+M",
+            Comp::DMinusM => "D-M",
+            Comp::MMinusD => "M-D",
+            Comp::DAndM => "D&M",
+            Comp::DOrM => "D|M",
+
+            Comp::LeftShiftA => "A<<",
+            Comp::LeftShiftD => "D<<",
+            Comp::LeftShiftM => "M<<",
+            Comp::RightShiftA => "A>>",
+            Comp::RightShiftD => "D>>",
+            Comp::RightShiftM => "M>>",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub struct C {
     pub dest: Destination,
     pub comp: Comp,
@@ -176,5 +271,18 @@ impl C {
             comp: Comp::new(comp),
             jump: Jump::new(jump),
         }
+    }
+}
+
+impl fmt::Display for C {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.dest != Destination::None {
+            write!(f, "{}=", self.dest)?;
+        }
+        write!(f, "{}", self.comp)?;
+        if self.jump != Jump::None {
+            write!(f, ";{}", self.jump)?;
+        }
+        Ok(())
     }
 }

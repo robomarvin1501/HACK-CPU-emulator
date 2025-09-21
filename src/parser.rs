@@ -16,9 +16,11 @@ pub fn parse(
 ) -> [Instruction; MAX_INSTRUCTIONS] {
     let whitespace_cleaned_lines = clear_whitespace(lines);
     labels_and_variables(&whitespace_cleaned_lines, address_table);
+    dbg!(&address_table.table);
 
     let mut parsed_lines: [Instruction; MAX_INSTRUCTIONS] =
         [const { Instruction::None }; MAX_INSTRUCTIONS];
+    let mut offset = 0;
     for (i, line) in whitespace_cleaned_lines.iter().enumerate() {
         if line.is_empty() {
             continue;
@@ -26,10 +28,14 @@ pub fn parse(
 
         // A instruction
         if line.starts_with(VARIABLE_DECLARATION) {
-            // parsed_lines.push(Instruction::A(A::new(&line[1..])));
-            parsed_lines[i] = Instruction::A(A::new(&line[1..]));
+            // parsed_lines[i - offset] = Instruction::A(A::new(&line[1..]));
+            dbg!(&line[1..]);
+            parsed_lines[i - offset] = Instruction::A(A::new(
+                &address_table.table.get(&line[1..]).unwrap().to_string(),
+            ));
         } else if line.starts_with(LABEL_BEGIN) && line.ends_with(LABEL_END) {
-            parsed_lines[i] = Instruction::Label();
+            offset += 1;
+            // parsed_lines[i] = Instruction::Label(line[1..line.len() - 1].to_string());
         }
         // C instruction
         else {
@@ -42,9 +48,13 @@ pub fn parse(
                     instruction = Instruction::C(C::new(temp_line[0], temp_line[1], ""));
                 }
             } else {
-                instruction = Instruction::C(C::new(temp_line[0], temp_line[1], temp_line[2]));
+                instruction = Instruction::C(C::new(
+                    &address_table.table.get(temp_line[0]).unwrap().to_string(),
+                    temp_line[1],
+                    temp_line[2],
+                ));
             }
-            parsed_lines[i] = instruction;
+            parsed_lines[i - offset] = instruction;
         }
     }
     parsed_lines
@@ -78,9 +88,10 @@ fn labels_and_variables(lines: &[String; MAX_INSTRUCTIONS], address_table: &mut 
     for (i, line) in lines.iter().enumerate() {
         if line.starts_with(LABEL_BEGIN) && line.ends_with(LABEL_END) {
             let label_name: String = line[1..line.len() - 1].to_string();
-            address_table
-                .table
-                .insert(label_name, i as u16 /*- labels_count*/);
+            address_table.table.insert(
+                label_name,
+                (i - labels_count as usize) as u16, /*- labels_count*/
+            );
             labels_count += 1;
         }
     }
