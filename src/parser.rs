@@ -27,7 +27,6 @@ pub fn parse(
         // A instruction
         if line.starts_with(VARIABLE_DECLARATION) {
             // parsed_lines[i - offset] = Instruction::A(A::new(&line[1..]));
-            dbg!(&line[1..]);
             parsed_lines[i - offset] = Instruction::A(A::new(
                 &address_table.table.get(&line[1..]).unwrap().to_string(),
             ));

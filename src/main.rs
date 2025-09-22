@@ -86,6 +86,7 @@ fn main() {
         cpu: state,
         instructions: instructions,
         num_labels: num_labels,
+        running: false,
     }));
     let cpu_display_clone = cpu_display.clone();
 
@@ -174,6 +175,9 @@ impl CPUState {
     }
 
     pub fn interpret(self: &mut Self, instruction: &Instruction) {
+        // TODO a_instruction calls parse (slow). Possibly other similar problems in c_instruction.
+        // The dest in A instructions should be replaced with a number, such that we can jump there
+        // directly, since we aren't showing the labels in the code any more
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),
             Instruction::C(c) => self.c_instruction(&c),
@@ -312,6 +316,7 @@ struct HackGUI {
     cpu: CPUState,
     instructions: [Instruction; MAX_INSTRUCTIONS],
     num_labels: usize,
+    running: bool,
 }
 
 impl HackGUI {
@@ -343,62 +348,19 @@ impl HackGUI {
         ui.window("Controls")
             .size([100.0, 100.0], Condition::FirstUseEver)
             .build(|| {
+                let stop_ui = ui.begin_disabled(!self.running);
+                if ui.button("Stop") {
+                    self.running = false;
+                }
+                stop_ui.end();
+                let running_ui = ui.begin_disabled(self.running);
+                if ui.button("Run") {
+                    self.running = true;
+                }
                 if ui.button("Step") {
                     self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
                     if let Some(kbd_letter) = key {
-                        self.cpu.ram[KBD_LOCATION] = match kbd_letter.to_owned() {
-                            Key::Character(c) => {
-                                if c.len() == 1 {
-                                    let ch = c.chars().next().unwrap();
-                                    let key_code = ch as i16;
-
-                                    if ch.is_ascii_uppercase() || ch.is_ascii_lowercase() {
-                                        Wrapping(key_code)
-                                    } else {
-                                        match key_code {
-                                            BACKSPACE_KEY => Wrapping(BACKSPACE_KEY),
-                                            NEWLINE_KEY => Wrapping(NEWLINE_KEY),
-                                            ESC_KEY => Wrapping(ESC_KEY),
-                                            DELETE_KEY => Wrapping(DELETE_KEY),
-                                            _ => Wrapping(key_code),
-                                        }
-                                    }
-                                } else {
-                                    // Should not occur
-                                    Wrapping(0)
-                                }
-                            }
-                            Key::Named(n) => match n {
-                                NamedKey::Space => Wrapping(32),
-                                NamedKey::Backspace => Wrapping(BACKSPACE_KEY),
-                                NamedKey::Enter => Wrapping(NEWLINE_KEY),
-                                NamedKey::Escape => Wrapping(ESC_KEY),
-                                NamedKey::Delete => Wrapping(DELETE_KEY),
-                                NamedKey::ArrowLeft => Wrapping(LEFT_KEY),
-                                NamedKey::ArrowRight => Wrapping(RIGHT_KEY),
-                                NamedKey::ArrowUp => Wrapping(UP_KEY),
-                                NamedKey::ArrowDown => Wrapping(DOWN_KEY),
-                                NamedKey::PageUp => Wrapping(PAGE_UP_KEY),
-                                NamedKey::PageDown => Wrapping(PAGE_DOWN_KEY),
-                                NamedKey::Home => Wrapping(HOME_KEY),
-                                NamedKey::End => Wrapping(END_KEY),
-                                NamedKey::F1 => Wrapping(F1_KEY),
-                                NamedKey::F2 => Wrapping(F2_KEY),
-                                NamedKey::F3 => Wrapping(F3_KEY),
-                                NamedKey::F4 => Wrapping(F4_KEY),
-                                NamedKey::F5 => Wrapping(F5_KEY),
-                                NamedKey::F6 => Wrapping(F6_KEY),
-                                NamedKey::F7 => Wrapping(F7_KEY),
-                                NamedKey::F8 => Wrapping(F8_KEY),
-                                NamedKey::F9 => Wrapping(F9_KEY),
-                                NamedKey::F10 => Wrapping(F10_KEY),
-                                NamedKey::F11 => Wrapping(F11_KEY),
-                                NamedKey::F12 => Wrapping(F12_KEY),
-                                NamedKey::Insert => Wrapping(INSERT_KEY),
-                                _ => Wrapping(0),
-                            },
-                            _ => Wrapping(0),
-                        };
+                        self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
                     } else {
                         self.cpu.ram[KBD_LOCATION] = Wrapping(0);
                     }
@@ -410,9 +372,21 @@ impl HackGUI {
                 if ui.button("Reset") {
                     self.cpu.pc = 0;
                 }
-                ui.text(format!("A: {}", self.cpu.a));
-                ui.text(format!("D: {}", self.cpu.d));
-                ui.text(format!("PC: {}", self.cpu.pc));
+                if !self.running {
+                    ui.text(format!("A: {}", self.cpu.a));
+                    ui.text(format!("D: {}", self.cpu.d));
+                    ui.text(format!("PC: {}", self.cpu.pc));
+                }
+                running_ui.end();
+
+                if self.running {
+                    self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
+                    if let Some(kbd_letter) = key {
+                        self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
+                    } else {
+                        self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+                    }
+                }
             });
         ui.window("Screen")
             .size(
@@ -437,6 +411,7 @@ impl HackGUI {
         ui.window("Program view")
             .size([100.0, 500.0], Condition::FirstUseEver)
             .build(|| {
+                let running_ui = ui.begin_disabled(self.running);
                 let num_cols = 2;
                 let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
 
@@ -448,6 +423,9 @@ impl HackGUI {
                 if let Some(_t) =
                     ui.begin_table_with_sizing("longtable", num_cols, flags, [300.0, 100.0], 0.0)
                 {
+                    if self.running {
+                        return;
+                    }
                     ui.table_setup_column("");
                     ui.table_setup_column("Instructions");
 
@@ -482,11 +460,15 @@ impl HackGUI {
                         }
                     }
                 }
+                running_ui.end();
             });
 
         ui.window("Memory view")
             .size([100.0, 500.0], Condition::FirstUseEver)
             .build(|| {
+                if self.running {
+                    return;
+                }
                 let num_cols = 2;
                 let num_rows = MAX_INSTRUCTIONS as i32;
 
@@ -516,6 +498,62 @@ impl HackGUI {
                     }
                 }
             });
+    }
+}
+
+fn get_keycode(key: &Key) -> Wrapping<i16> {
+    match key.to_owned() {
+        Key::Character(c) => {
+            if c.len() == 1 {
+                let ch = c.chars().next().unwrap();
+                let key_code = ch as i16;
+
+                if ch.is_ascii_uppercase() || ch.is_ascii_lowercase() {
+                    Wrapping(key_code)
+                } else {
+                    match key_code {
+                        BACKSPACE_KEY => Wrapping(BACKSPACE_KEY),
+                        NEWLINE_KEY => Wrapping(NEWLINE_KEY),
+                        ESC_KEY => Wrapping(ESC_KEY),
+                        DELETE_KEY => Wrapping(DELETE_KEY),
+                        _ => Wrapping(key_code),
+                    }
+                }
+            } else {
+                // Should not occur
+                Wrapping(0)
+            }
+        }
+        Key::Named(n) => match n {
+            NamedKey::Space => Wrapping(32),
+            NamedKey::Backspace => Wrapping(BACKSPACE_KEY),
+            NamedKey::Enter => Wrapping(NEWLINE_KEY),
+            NamedKey::Escape => Wrapping(ESC_KEY),
+            NamedKey::Delete => Wrapping(DELETE_KEY),
+            NamedKey::ArrowLeft => Wrapping(LEFT_KEY),
+            NamedKey::ArrowRight => Wrapping(RIGHT_KEY),
+            NamedKey::ArrowUp => Wrapping(UP_KEY),
+            NamedKey::ArrowDown => Wrapping(DOWN_KEY),
+            NamedKey::PageUp => Wrapping(PAGE_UP_KEY),
+            NamedKey::PageDown => Wrapping(PAGE_DOWN_KEY),
+            NamedKey::Home => Wrapping(HOME_KEY),
+            NamedKey::End => Wrapping(END_KEY),
+            NamedKey::F1 => Wrapping(F1_KEY),
+            NamedKey::F2 => Wrapping(F2_KEY),
+            NamedKey::F3 => Wrapping(F3_KEY),
+            NamedKey::F4 => Wrapping(F4_KEY),
+            NamedKey::F5 => Wrapping(F5_KEY),
+            NamedKey::F6 => Wrapping(F6_KEY),
+            NamedKey::F7 => Wrapping(F7_KEY),
+            NamedKey::F8 => Wrapping(F8_KEY),
+            NamedKey::F9 => Wrapping(F9_KEY),
+            NamedKey::F10 => Wrapping(F10_KEY),
+            NamedKey::F11 => Wrapping(F11_KEY),
+            NamedKey::F12 => Wrapping(F12_KEY),
+            NamedKey::Insert => Wrapping(INSERT_KEY),
+            _ => Wrapping(0),
+        },
+        _ => Wrapping(0),
     }
 }
 
