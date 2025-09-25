@@ -87,6 +87,7 @@ fn main() {
         instructions: instructions,
         num_labels: num_labels,
         running: false,
+        execution_count: Wrapping(0),
     }));
     let cpu_display_clone = cpu_display.clone();
 
@@ -186,14 +187,7 @@ impl CPUState {
     }
 
     fn a_instruction(self: &mut Self, a: &A) {
-        let destination = match a.dest.parse::<u16>() {
-            Ok(d) => d,
-            Err(_) => match self.address_table.table.get(&a.dest) {
-                Some(loc) => loc.to_owned(),
-                None => panic!("Invalid instruction: {:?}", a),
-            },
-        };
-        self.a = Wrapping(destination as i16);
+        self.a = Wrapping(a.dest);
         self.pc += 1;
     }
 
@@ -317,6 +311,7 @@ struct HackGUI {
     instructions: [Instruction; MAX_INSTRUCTIONS],
     num_labels: usize,
     running: bool,
+    execution_count: Wrapping<i16>,
 }
 
 impl HackGUI {
@@ -381,6 +376,7 @@ impl HackGUI {
 
                 if self.running {
                     self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
+                    self.execution_count += 1;
                     if let Some(kbd_letter) = key {
                         self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
                     } else {
@@ -394,16 +390,32 @@ impl HackGUI {
                 Condition::FirstUseEver,
             )
             .build(|| -> Result<(), Box<dyn Error>> {
-                // Replace the screen texture
                 if let Some(sti) = self.screen_texture_id {
-                    // Remove old texture
-                    renderer.textures().remove(sti);
-
-                    let texture = generate_screen_texture(&self.cpu, display.get_context())?;
-                    let texture_id = renderer.textures().insert(texture);
-                    self.screen_texture_id = Some(texture_id);
-
-                    Image::new(texture_id, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
+                    if self.execution_count.0 % 100 != 0 {
+                        Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
+                        return Ok(());
+                    }
+                    if let Some(st) = renderer.textures().get_mut(sti) {
+                        let screen_contents = hack_to_rgba(
+                            &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
+                        );
+                        let raw = RawImage2d {
+                            data: Cow::Owned(screen_contents),
+                            width: SCREEN_WIDTH as u32,
+                            height: SCREEN_HEIGHT as u32,
+                            format: ClientFormat::U8U8U8,
+                        };
+                        st.texture.write(
+                            glium::Rect {
+                                left: 0,
+                                bottom: 0,
+                                width: SCREEN_WIDTH as u32,
+                                height: SCREEN_HEIGHT as u32,
+                            },
+                            raw,
+                        );
+                    }
+                    Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
                 }
                 Ok(())
             });
@@ -591,17 +603,59 @@ fn get_pixel(screen: &[Wrapping<i16>], row: usize, col: usize) -> bool {
     ((word >> bit_index) & 1) == 1
 }
 
-fn hack_to_rgba(screen: &[Wrapping<i16>]) -> Vec<u8> {
-    let mut framebuffer: Vec<u8> = Vec::with_capacity(SCREEN_WIDTH * SCREEN_HEIGHT);
+pub fn hack_to_rgba(screen: &[Wrapping<i16>]) -> Vec<u8> {
+    // Preallocate fully: each pixel → 3 bytes (RGB)
+    let mut framebuffer = vec![255u8; SCREEN_WIDTH * SCREEN_HEIGHT * 3];
+
+    // Each row has 32 words, each word = 16 horizontal pixels
     for row in 0..SCREEN_HEIGHT {
-        for col in 0..SCREEN_WIDTH {
-            let p = get_pixel(screen, row, col);
-            let colour = if p { 0u8 } else { 255u8 };
-            // Insert RGB values
-            framebuffer.push(colour);
-            framebuffer.push(colour);
-            framebuffer.push(colour);
+        for word_index in 0..32 {
+            let word = screen[row * 32 + word_index].0 as u16; // cast to unsigned for shift safety
+
+            // Precompute base offset in framebuffer
+            let base = (row * SCREEN_WIDTH + word_index * 16) * 3;
+
+            // Iterate bits (col within this word)
+            for bit in 0..16 {
+                // Hack screen convention: LSB is leftmost
+                if (word >> bit) & 1 == 1 {
+                    let offset = base + bit * 3;
+                    framebuffer[offset] = 0;
+                    framebuffer[offset + 1] = 0;
+                    framebuffer[offset + 2] = 0;
+                }
+            }
         }
     }
+
     framebuffer
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_speed() {
+        let contents: String =
+            fs::read_to_string("AutoFill.asm").expect("Should have been able to read file");
+        let instructions: Vec<String> =
+            contents.split("\n").map(|s| s.trim().to_string()).collect();
+        let mut s_instructions: [String; MAX_INSTRUCTIONS] =
+            [const { String::new() }; MAX_INSTRUCTIONS];
+        for (i, instruction) in instructions.iter().enumerate() {
+            s_instructions[i] = instruction.to_string();
+        }
+        let mut cpu = CPUState::new();
+        let instructions = parse(s_instructions, &mut cpu.address_table);
+
+        for _ in 0..1000000000 {
+            cpu.interpret(&instructions[cpu.pc as usize]);
+            hack_to_rgba(&cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH]);
+        }
+
+        for i in SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH {
+            assert_eq!(cpu.ram[i], Wrapping(-1))
+        }
+    }
 }

@@ -21,12 +21,15 @@ impl fmt::Display for Instruction {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct A {
-    pub dest: String,
+    pub dest: i16,
 }
 impl A {
     pub fn new(dest: &str) -> Self {
         Self {
-            dest: dest.to_string(),
+            dest: match dest.parse::<i16>() {
+                Ok(d) => d,
+                Err(e) => panic!("Failed to parse the destination of the A instruction: {e}"),
+            },
         }
     }
 }
