@@ -18,7 +18,8 @@ use glium::{
     backend::Facade,
     texture::{ClientFormat, RawImage2d},
     uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior},
-    winit::keyboard::{Key, NamedKey}, Texture2d,
+    winit::keyboard::{Key, NamedKey},
+    Texture2d,
 };
 use imgui::*;
 use imgui_glium_renderer::{Renderer, Texture};
@@ -168,9 +169,6 @@ impl CPUState {
     }
 
     pub fn interpret(self: &mut Self, instruction: &Instruction) {
-        // TODO a_instruction calls parse (slow). Possibly other similar problems in c_instruction.
-        // The dest in A instructions should be replaced with a number, such that we can jump there
-        // directly, since we aren't showing the labels in the code any more
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),
             Instruction::C(c) => self.c_instruction(&c),
