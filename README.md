@@ -4,10 +4,9 @@ I personally found the Java emulators to be functional, though slow, with many U
 generally linked to the age of the emulator's code. The new web emulators were a non-functional
 mess when I tried to use them. This will hopefully provide a reasonable substitute when it is done.
 
-Currently most basic functionality is complete, if untested, in that the emulator can read ASM
-code, and run it. However, there is currently no GUI, no testing, and no debugging
-capabilities. These will be added with time. Also, there are some speed optimisations
-to be done.
+Currently, the emulator can run ASM code (lightly tested, not thoroughly), and display with the GUI the happenings
+inside the emulator, along with displaying to the screen. The GUI still needs improvement in terms of layout, and
+debugging controls still need to be added.
 
 Another change is that I have added the shift commands found in some variations
 of the course, since what computer doesn't have those? Feel free not
