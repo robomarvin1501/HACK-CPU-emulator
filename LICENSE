@@ -672,3 +672,8 @@ may consider it more useful to permit linking proprietary applications with
 the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
+
+  Some portions of this project (the support folder inside of src) are derived
+from code originally licensed under the MIT license. See LICENSE-MIT for
+details. Additionally, the resources folder contains fonts licensed under
+relevant font licenses.

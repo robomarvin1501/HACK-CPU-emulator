@@ -1,3 +1,6 @@
+// This file is based on code from imgui-rs, originally licensed under MIT
+// Modifications (c) 2025 8Oldr, distributed under GPLv3
+
 use copypasta::{ClipboardContext, ClipboardProvider};
 use imgui::ClipboardBackend;
 
