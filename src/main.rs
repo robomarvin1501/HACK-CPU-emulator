@@ -1,7 +1,6 @@
 use core::panic;
 use instructions::{Comp, Destination, Instruction, Jump, A, C};
 use parser::{parse, MAX_INSTRUCTIONS};
-use sdl2::{libc::if_nameindex, render};
 use std::{
     env,
     error::Error,
@@ -39,6 +38,7 @@ const SCREEN_HEIGHT: usize = 256;
 const SCREEN_LOCATION: usize = 16384;
 const SCREEN_LENGTH: usize = 8192;
 const KBD_LOCATION: usize = 24576;
+const INSTRUCTIONS_PER_REFRESH: usize = 100_000;
 
 // Key codes
 const NEWLINE_KEY: i16 = 128;
@@ -87,7 +87,6 @@ fn main() {
         instructions: instructions,
         num_labels: num_labels,
         running: false,
-        execution_count: Wrapping(0),
     }));
     let cpu_display_clone = cpu_display.clone();
 
@@ -311,7 +310,6 @@ struct HackGUI {
     instructions: [Instruction; MAX_INSTRUCTIONS],
     num_labels: usize,
     running: bool,
-    execution_count: Wrapping<i16>,
 }
 
 impl HackGUI {
@@ -367,16 +365,22 @@ impl HackGUI {
                 if ui.button("Reset") {
                     self.cpu.pc = 0;
                 }
+
                 if !self.running {
                     ui.text(format!("A: {}", self.cpu.a));
                     ui.text(format!("D: {}", self.cpu.d));
                     ui.text(format!("PC: {}", self.cpu.pc));
+                } else {
+                    ui.text(format!("A: "));
+                    ui.text(format!("D: "));
+                    ui.text(format!("PC: "));
                 }
                 running_ui.end();
 
                 if self.running {
-                    self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
-                    self.execution_count += 1;
+                    for _ in 0..INSTRUCTIONS_PER_REFRESH {
+                        self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
+                    }
                     if let Some(kbd_letter) = key {
                         self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
                     } else {
@@ -391,10 +395,6 @@ impl HackGUI {
             )
             .build(|| -> Result<(), Box<dyn Error>> {
                 if let Some(sti) = self.screen_texture_id {
-                    if self.execution_count.0 % 100 != 0 {
-                        Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
-                        return Ok(());
-                    }
                     if let Some(st) = renderer.textures().get_mut(sti) {
                         let screen_contents = hack_to_rgba(
                             &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
@@ -435,9 +435,6 @@ impl HackGUI {
                 if let Some(_t) =
                     ui.begin_table_with_sizing("longtable", num_cols, flags, [300.0, 100.0], 0.0)
                 {
-                    if self.running {
-                        return;
-                    }
                     ui.table_setup_column("");
                     ui.table_setup_column("Instructions");
 
@@ -478,9 +475,6 @@ impl HackGUI {
         ui.window("Memory view")
             .size([100.0, 500.0], Condition::FirstUseEver)
             .build(|| {
-                if self.running {
-                    return;
-                }
                 let num_cols = 2;
                 let num_rows = MAX_INSTRUCTIONS as i32;
 
