@@ -16,9 +16,7 @@ mod clipboard;
 pub const FONT_SIZE: f32 = 13.0;
 
 #[allow(dead_code)] // annoyingly, RA yells that this is unusued
-pub fn simple_init<
-    F: FnMut(&mut bool, &mut Ui, &mut Renderer, &Display<WindowSurface>, &Option<Key>) + 'static,
->(
+pub fn simple_init<F: FnMut(&mut bool, &mut Ui, &mut Renderer, &Option<Key>) + 'static>(
     title: &str,
     run_ui: F,
 ) {
@@ -28,7 +26,7 @@ pub fn simple_init<
 pub fn init_with_startup<FInit, FUi>(title: &str, mut startup: FInit, mut run_ui: FUi)
 where
     FInit: FnMut(&mut Context, &mut Renderer, &Display<WindowSurface>) + 'static,
-    FUi: FnMut(&mut bool, &mut Ui, &mut Renderer, &Display<WindowSurface>, &Option<Key>) + 'static,
+    FUi: FnMut(&mut bool, &mut Ui, &mut Renderer, &Option<Key>) + 'static,
 {
     let mut imgui = create_context();
 
@@ -94,7 +92,7 @@ where
                 let ui = imgui.frame();
 
                 let mut run = true;
-                run_ui(&mut run, ui, &mut renderer, &display, &key_pressed);
+                run_ui(&mut run, ui, &mut renderer, &key_pressed);
                 if !run {
                     window_target.exit();
                 }
