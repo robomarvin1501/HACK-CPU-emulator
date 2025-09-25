@@ -1,5 +1,8 @@
 use core::fmt;
 
+// Label is never constructed, but left for the future, since there is an intention to show the
+// labels in the emulator
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Instruction {
     A(A),

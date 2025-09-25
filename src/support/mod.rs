@@ -123,11 +123,10 @@ where
                 event: WindowEvent::KeyboardInput { event, .. },
                 ..
             } => {
-                if let key = event.logical_key {
-                    match event.state {
-                        glium::winit::event::ElementState::Pressed => key_pressed = Some(key),
-                        glium::winit::event::ElementState::Released => key_pressed = None,
-                    }
+                let key = event.logical_key;
+                match event.state {
+                    glium::winit::event::ElementState::Pressed => key_pressed = Some(key),
+                    glium::winit::event::ElementState::Released => key_pressed = None,
                 }
             }
             event => {

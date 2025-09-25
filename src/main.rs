@@ -6,11 +6,9 @@ use std::{
     error::Error,
     fmt::Debug,
     fs,
-    io::Read,
     num::Wrapping,
     ops::{Neg, Not},
     path::PathBuf,
-    thread::panicking,
     usize,
 };
 mod instructions;
@@ -18,16 +16,13 @@ mod parser;
 mod symbol_table;
 use glium::{
     backend::Facade,
-    glutin::surface::WindowSurface,
     texture::{ClientFormat, RawImage2d},
     uniforms::{MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior},
-    winit::keyboard::{Key, NamedKey},
-    Display, Texture2d,
+    winit::keyboard::{Key, NamedKey}, Texture2d,
 };
 use imgui::*;
 use imgui_glium_renderer::{Renderer, Texture};
 use std::borrow::Cow;
-use std::io::Cursor;
 use std::rc::Rc;
 
 mod support;
