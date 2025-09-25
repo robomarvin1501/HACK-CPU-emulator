@@ -98,10 +98,8 @@ fn main() {
                 .register_textures(display.get_context(), renderer.textures())
                 .expect("Failed to register textures");
         },
-        move |_, ui, renderer, display, key| {
-            cpu_display
-                .borrow_mut()
-                .show_textures(ui, renderer, display, key);
+        move |_, ui, renderer, key| {
+            cpu_display.borrow_mut().show_textures(ui, renderer, key);
         },
     );
 
@@ -331,13 +329,7 @@ impl HackGUI {
         Ok(())
     }
 
-    fn show_textures(
-        &mut self,
-        ui: &Ui,
-        renderer: &mut Renderer,
-        display: &Display<WindowSurface>,
-        key: &Option<Key>,
-    ) {
+    fn show_textures(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
         ui.window("Controls")
             .size([100.0, 100.0], Condition::FirstUseEver)
             .build(|| {
@@ -357,10 +349,6 @@ impl HackGUI {
                     } else {
                         self.cpu.ram[KBD_LOCATION] = Wrapping(0);
                     }
-                    //     dbg!(&instructions[state.pc as usize]);
-                    //     state.interpret(&instructions[state.pc as usize]);
-                    //     dbg!(&state.ram[0..20]);
-                    //     std::io::stdin().bytes().next();
                 }
                 if ui.button("Reset") {
                     self.cpu.pc = 0;
@@ -587,14 +575,6 @@ where
         },
     };
     return Ok(texture);
-}
-
-fn get_pixel(screen: &[Wrapping<i16>], row: usize, col: usize) -> bool {
-    // Width * row + col (col / 16 because each number is 16 pixels wide)
-    let word_index = row * 32 + (col / 16);
-    let bit_index = col % 16;
-    let word = screen[word_index].0;
-    ((word >> bit_index) & 1) == 1
 }
 
 pub fn hack_to_rgba(screen: &[Wrapping<i16>]) -> Vec<u8> {
