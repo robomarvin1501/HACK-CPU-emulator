@@ -26,7 +26,8 @@ pub fn parse(
 
         // A instruction
         if line.starts_with(VARIABLE_DECLARATION) {
-            // parsed_lines[i - offset] = Instruction::A(A::new(&line[1..]));
+            // Unchecked unwrap is acceptable, since all the destinations are put into the address
+            // table in labels_and_variables
             parsed_lines[i - offset] = Instruction::A(A::new(
                 &address_table.table.get(&line[1..]).unwrap().to_string(),
             ));
@@ -45,11 +46,11 @@ pub fn parse(
                     instruction = Instruction::C(C::new(temp_line[0], temp_line[1], ""));
                 }
             } else {
-                instruction = Instruction::C(C::new(
-                    &address_table.table.get(temp_line[0]).unwrap().to_string(),
-                    temp_line[1],
-                    temp_line[2],
-                ));
+                let dest = match address_table.table.get(temp_line[0]) {
+                    Some(d) => d,
+                    None => panic!("Line {i} is invalid code: {line}"),
+                };
+                instruction = Instruction::C(C::new(&dest.to_string(), temp_line[1], temp_line[2]));
             }
             parsed_lines[i - offset] = instruction;
         }
@@ -85,10 +86,9 @@ fn labels_and_variables(lines: &[String; MAX_INSTRUCTIONS], address_table: &mut 
     for (i, line) in lines.iter().enumerate() {
         if line.starts_with(LABEL_BEGIN) && line.ends_with(LABEL_END) {
             let label_name: String = line[1..line.len() - 1].to_string();
-            address_table.table.insert(
-                label_name,
-                (i - labels_count as usize) as u16, /*- labels_count*/
-            );
+            address_table
+                .table
+                .insert(label_name, (i - labels_count as usize) as u16);
             labels_count += 1;
         }
     }

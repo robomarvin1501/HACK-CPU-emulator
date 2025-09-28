@@ -103,9 +103,14 @@ mod test {
     use std::num::Wrapping;
 
     #[test]
+    fn truth_itself() {
+        assert_eq!("Veer Gala woz 'ere", "Veer Gala woz 'ere");
+    }
+
+    #[test]
     fn test_speed() {
         let contents: String =
-            fs::read_to_string("AutoFill.asm").expect("Should have been able to read file");
+            fs::read_to_string("asm/AutoFill.asm").expect("Should have been able to read file");
         let instructions: Vec<String> =
             contents.split("\n").map(|s| s.trim().to_string()).collect();
         let mut s_instructions: [String; MAX_INSTRUCTIONS] =
