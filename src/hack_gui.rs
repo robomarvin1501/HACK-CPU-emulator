@@ -117,11 +117,49 @@ impl HackGUI {
                 ui.separator();
 
                 ui.columns(3, "main_cols", true);
-                ui.child_window("Left pane")
+                ui.set_column_width(0, (SCREEN_WIDTH + 10) as f32);
+                // let avail_width = ui.content_region_avail()[0];
+                // let width = avail_width.max(SCREEN_WIDTH as f32);
+                ui.child_window("Screen pane")
+                    .size([SCREEN_WIDTH as f32, 0.0])
+                    .border(true)
+                    .build(|| {
+                        ui.text("Screen");
+
+                        if let Some(sti) = self.screen_texture_id {
+                            if let Some(st) = renderer.textures().get_mut(sti) {
+                                let screen_contents = hack_to_rgba(
+                                    &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
+                                );
+                                let raw = RawImage2d {
+                                    data: Cow::Owned(screen_contents),
+                                    width: SCREEN_WIDTH as u32,
+                                    height: SCREEN_HEIGHT as u32,
+                                    format: ClientFormat::U8U8U8,
+                                };
+                                st.texture.write(
+                                    glium::Rect {
+                                        left: 0,
+                                        bottom: 0,
+                                        width: SCREEN_WIDTH as u32,
+                                        height: SCREEN_HEIGHT as u32,
+                                    },
+                                    raw,
+                                );
+                            }
+                            Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
+                        };
+                        let running_ui = ui.begin_disabled(self.running);
+                        ui.text(format!("D: {}", self.cpu.d));
+                        running_ui.end();
+                    });
+
+                ui.next_column();
+                ui.child_window("ROM")
                     .size([0.0, 0.0])
                     .border(true)
                     .build(|| {
-                        ui.text("Program view");
+                        ui.text("ROM");
                         let running_ui = ui.begin_disabled(self.running);
                         ui.text(format!("PC: {}", self.cpu.pc));
                         let num_cols = 2;
@@ -177,11 +215,11 @@ impl HackGUI {
                     });
 
                 ui.next_column();
-                ui.child_window("Memory view")
+                ui.child_window("RAM")
                     .size([0.0, 0.0])
                     .border(true)
                     .build(|| {
-                        ui.text("Memory view");
+                        ui.text("RAM");
                         ui.text(format!("A: {}", self.cpu.a));
                         let num_cols = 2;
                         let num_rows = MAX_INSTRUCTIONS as i32;
@@ -216,41 +254,6 @@ impl HackGUI {
                             }
                         }
                     });
-
-                ui.next_column();
-                ui.child_window("Screen pane")
-                    .size([SCREEN_WIDTH as f32, 0.0])
-                    .border(true)
-                    .build(|| {
-                        ui.text("Screen");
-
-                        if let Some(sti) = self.screen_texture_id {
-                            if let Some(st) = renderer.textures().get_mut(sti) {
-                                let screen_contents = hack_to_rgba(
-                                    &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
-                                );
-                                let raw = RawImage2d {
-                                    data: Cow::Owned(screen_contents),
-                                    width: SCREEN_WIDTH as u32,
-                                    height: SCREEN_HEIGHT as u32,
-                                    format: ClientFormat::U8U8U8,
-                                };
-                                st.texture.write(
-                                    glium::Rect {
-                                        left: 0,
-                                        bottom: 0,
-                                        width: SCREEN_WIDTH as u32,
-                                        height: SCREEN_HEIGHT as u32,
-                                    },
-                                    raw,
-                                );
-                            }
-                            Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
-                        };
-                        let running_ui = ui.begin_disabled(self.running);
-                        ui.text(format!("D: {}", self.cpu.d));
-                        running_ui.end();
-                    })
             });
     }
 }
