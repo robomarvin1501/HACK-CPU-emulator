@@ -72,167 +72,185 @@ impl HackGUI {
     }
 
     pub fn show_textures(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
-        ui.window("Controls")
-            .size([100.0, 100.0], Condition::FirstUseEver)
+        let [screen_width, screen_height] = ui.io().display_size;
+        ui.window("CPU Emulator")
+            .size([screen_width, screen_height], Condition::Always)
+            .position([0.0, 0.0], Condition::Always)
+            .movable(false)
+            .collapsible(false)
+            .resizable(true)
             .build(|| {
-                let stop_ui = ui.begin_disabled(!self.running);
-                if ui.button("Stop") {
-                    self.running = false;
-                }
-                stop_ui.end();
-                let running_ui = ui.begin_disabled(self.running);
-                if ui.button("Run") {
-                    self.running = true;
-                }
-                if ui.button("Step") {
-                    self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
-                    if let Some(kbd_letter) = key {
-                        self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
-                    } else {
-                        self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+                ui.child_window("Controls").size([0.0, 120.0]).build(|| {
+                    let stop_ui = ui.begin_disabled(!self.running);
+                    if ui.button("Stop") {
+                        self.running = false;
                     }
-                }
-                if ui.button("Reset") {
-                    self.cpu.pc = 0;
-                }
-
-                if !self.running {
-                    ui.text(format!("A: {}", self.cpu.a));
-                    ui.text(format!("D: {}", self.cpu.d));
-                    ui.text(format!("PC: {}", self.cpu.pc));
-                } else {
-                    ui.text(format!("A: "));
-                    ui.text(format!("D: "));
-                    ui.text(format!("PC: "));
-                }
-                running_ui.end();
-
-                if self.running {
-                    for _ in 0..INSTRUCTIONS_PER_REFRESH {
+                    stop_ui.end();
+                    let running_ui = ui.begin_disabled(self.running);
+                    if ui.button("Run") {
+                        self.running = true;
+                    }
+                    if ui.button("Step") {
                         self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
+                        if let Some(kbd_letter) = key {
+                            self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
+                        } else {
+                            self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+                        }
                     }
-                    if let Some(kbd_letter) = key {
-                        self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
-                    } else {
-                        self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+                    if ui.button("Reset") {
+                        self.cpu.pc = 0;
                     }
-                }
-            });
-        ui.window("Screen")
-            .size(
-                [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32],
-                Condition::FirstUseEver,
-            )
-            .build(|| -> Result<(), Box<dyn Error>> {
-                if let Some(sti) = self.screen_texture_id {
-                    if let Some(st) = renderer.textures().get_mut(sti) {
-                        let screen_contents = hack_to_rgba(
-                            &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
-                        );
-                        let raw = RawImage2d {
-                            data: Cow::Owned(screen_contents),
-                            width: SCREEN_WIDTH as u32,
-                            height: SCREEN_HEIGHT as u32,
-                            format: ClientFormat::U8U8U8,
+                    running_ui.end();
+
+                    if self.running {
+                        for _ in 0..INSTRUCTIONS_PER_REFRESH {
+                            self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
+                        }
+                        if let Some(kbd_letter) = key {
+                            self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
+                        } else {
+                            self.cpu.ram[KBD_LOCATION] = Wrapping(0);
+                        }
+                    }
+                });
+                ui.separator();
+
+                ui.columns(3, "main_cols", true);
+                ui.child_window("Left pane")
+                    .size([0.0, 0.0])
+                    .border(true)
+                    .build(|| {
+                        ui.text("Program view");
+                        let running_ui = ui.begin_disabled(self.running);
+                        ui.text(format!("PC: {}", self.cpu.pc));
+                        let num_cols = 2;
+                        let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
+
+                        let flags = imgui::TableFlags::ROW_BG
+                            | imgui::TableFlags::RESIZABLE
+                            | imgui::TableFlags::BORDERS_H
+                            | imgui::TableFlags::BORDERS_V;
+
+                        if let Some(_t) = ui.begin_table_with_sizing(
+                            "longtable",
+                            num_cols,
+                            flags,
+                            [-1.0, 0.0],
+                            0.0,
+                        ) {
+                            ui.table_setup_column("");
+                            ui.table_setup_column("Instructions");
+
+                            // Freeze first row so headers are visible when scrolling
+                            ui.table_setup_scroll_freeze(num_cols, 1);
+
+                            ui.table_headers_row();
+
+                            let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                            let mut offset = 0;
+                            for row_num in clip.iter() {
+                                ui.table_next_row();
+                                ui.table_set_column_index(0);
+                                if (row_num - offset) as u16 == self.cpu.pc {
+                                    ui.table_set_bg_color(
+                                        TableBgTarget::ROW_BG1,
+                                        ImColor32::from_rgb(100, 100, 0),
+                                    );
+                                }
+                                match self.instructions[row_num as usize] {
+                                    Instruction::Label(_) => {
+                                        offset += 1;
+                                        ui.text("");
+                                        ui.table_set_column_index(1);
+                                        ui.text(format!("{}", self.instructions[row_num as usize]));
+                                    }
+                                    Instruction::A(_) | Instruction::C(_) | Instruction::None => {
+                                        ui.text(format!("{}", row_num - offset));
+                                        ui.table_set_column_index(1);
+                                        ui.text(format!("{}", self.instructions[row_num as usize]));
+                                    }
+                                }
+                            }
+                        }
+                        running_ui.end();
+                    });
+
+                ui.next_column();
+                ui.child_window("Memory view")
+                    .size([0.0, 0.0])
+                    .border(true)
+                    .build(|| {
+                        ui.text("Memory view");
+                        ui.text(format!("A: {}", self.cpu.a));
+                        let num_cols = 2;
+                        let num_rows = MAX_INSTRUCTIONS as i32;
+
+                        let flags = imgui::TableFlags::ROW_BG
+                            | imgui::TableFlags::RESIZABLE
+                            | imgui::TableFlags::BORDERS_H
+                            | imgui::TableFlags::BORDERS_V;
+
+                        if let Some(_t) = ui.begin_table_with_sizing(
+                            "longtable",
+                            num_cols,
+                            flags,
+                            [-1.0, 0.0],
+                            0.0,
+                        ) {
+                            ui.table_setup_column("");
+                            ui.table_setup_column("Memory");
+
+                            // Freeze first row so headers are visible when scrolling
+                            ui.table_setup_scroll_freeze(num_cols, 1);
+
+                            ui.table_headers_row();
+
+                            let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                            for row_num in clip.iter() {
+                                ui.table_next_row();
+                                ui.table_set_column_index(0);
+                                ui.text(format!("{}", row_num));
+                                ui.table_set_column_index(1);
+                                ui.text(format!("{}", self.cpu.ram[row_num as usize]));
+                            }
+                        }
+                    });
+
+                ui.next_column();
+                ui.child_window("Screen pane")
+                    .size([SCREEN_WIDTH as f32, 0.0])
+                    .border(true)
+                    .build(|| {
+                        ui.text("Screen");
+
+                        if let Some(sti) = self.screen_texture_id {
+                            if let Some(st) = renderer.textures().get_mut(sti) {
+                                let screen_contents = hack_to_rgba(
+                                    &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
+                                );
+                                let raw = RawImage2d {
+                                    data: Cow::Owned(screen_contents),
+                                    width: SCREEN_WIDTH as u32,
+                                    height: SCREEN_HEIGHT as u32,
+                                    format: ClientFormat::U8U8U8,
+                                };
+                                st.texture.write(
+                                    glium::Rect {
+                                        left: 0,
+                                        bottom: 0,
+                                        width: SCREEN_WIDTH as u32,
+                                        height: SCREEN_HEIGHT as u32,
+                                    },
+                                    raw,
+                                );
+                            }
+                            Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
                         };
-                        st.texture.write(
-                            glium::Rect {
-                                left: 0,
-                                bottom: 0,
-                                width: SCREEN_WIDTH as u32,
-                                height: SCREEN_HEIGHT as u32,
-                            },
-                            raw,
-                        );
-                    }
-                    Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
-                }
-                Ok(())
-            });
-
-        ui.window("Program view")
-            .size([100.0, 500.0], Condition::FirstUseEver)
-            .build(|| {
-                let running_ui = ui.begin_disabled(self.running);
-                let num_cols = 2;
-                let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
-
-                let flags = imgui::TableFlags::ROW_BG
-                    | imgui::TableFlags::RESIZABLE
-                    | imgui::TableFlags::BORDERS_H
-                    | imgui::TableFlags::BORDERS_V;
-
-                if let Some(_t) =
-                    ui.begin_table_with_sizing("longtable", num_cols, flags, [300.0, 100.0], 0.0)
-                {
-                    ui.table_setup_column("");
-                    ui.table_setup_column("Instructions");
-
-                    // Freeze first row so headers are visible when scrolling
-                    ui.table_setup_scroll_freeze(num_cols, 1);
-
-                    ui.table_headers_row();
-
-                    let clip = imgui::ListClipper::new(num_rows).begin(ui);
-                    let mut offset = 0;
-                    for row_num in clip.iter() {
-                        ui.table_next_row();
-                        ui.table_set_column_index(0);
-                        if (row_num - offset) as u16 == self.cpu.pc {
-                            ui.table_set_bg_color(
-                                TableBgTarget::ROW_BG1,
-                                ImColor32::from_rgb(100, 100, 0),
-                            );
-                        }
-                        match self.instructions[row_num as usize] {
-                            Instruction::Label(_) => {
-                                offset += 1;
-                                ui.text("");
-                                ui.table_set_column_index(1);
-                                ui.text(format!("{}", self.instructions[row_num as usize]));
-                            }
-                            Instruction::A(_) | Instruction::C(_) | Instruction::None => {
-                                ui.text(format!("{}", row_num - offset));
-                                ui.table_set_column_index(1);
-                                ui.text(format!("{}", self.instructions[row_num as usize]));
-                            }
-                        }
-                    }
-                }
-                running_ui.end();
-            });
-
-        ui.window("Memory view")
-            .size([100.0, 500.0], Condition::FirstUseEver)
-            .build(|| {
-                let num_cols = 2;
-                let num_rows = MAX_INSTRUCTIONS as i32;
-
-                let flags = imgui::TableFlags::ROW_BG
-                    | imgui::TableFlags::RESIZABLE
-                    | imgui::TableFlags::BORDERS_H
-                    | imgui::TableFlags::BORDERS_V;
-
-                if let Some(_t) =
-                    ui.begin_table_with_sizing("longtable", num_cols, flags, [300.0, 100.0], 0.0)
-                {
-                    ui.table_setup_column("");
-                    ui.table_setup_column("Memory");
-
-                    // Freeze first row so headers are visible when scrolling
-                    ui.table_setup_scroll_freeze(num_cols, 1);
-
-                    ui.table_headers_row();
-
-                    let clip = imgui::ListClipper::new(num_rows).begin(ui);
-                    for row_num in clip.iter() {
-                        ui.table_next_row();
-                        ui.table_set_column_index(0);
-                        ui.text(format!("{}", row_num));
-                        ui.table_set_column_index(1);
-                        ui.text(format!("{}", self.cpu.ram[row_num as usize]));
-                    }
-                }
+                        let running_ui = ui.begin_disabled(self.running);
+                        ui.text(format!("D: {}", self.cpu.d));
+                        running_ui.end();
+                    })
             });
     }
 }
