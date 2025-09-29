@@ -1,8 +1,13 @@
 // This file is based on code from imgui-rs, originally licensed under MIT
 // Modifications (c) 2025 8Oldr, distributed under GPLv3
 
-use glium::glutin::surface::WindowSurface;
+use glium::glutin::config::ConfigTemplateBuilder;
+use glium::glutin::context::ContextAttributesBuilder;
+use glium::glutin::display::GetGlDisplay;
+use glium::glutin::prelude::{GlDisplay, NotCurrentGlContext};
+use glium::glutin::surface::{GlSurface, SurfaceAttributesBuilder, WindowSurface};
 use glium::winit::keyboard::Key;
+use glium::winit::raw_window_handle::HasWindowHandle;
 use glium::{Display, Surface};
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_glium_renderer::Renderer;
@@ -11,6 +16,7 @@ use imgui_winit_support::winit::event::{Event, WindowEvent};
 use imgui_winit_support::winit::event_loop::EventLoop;
 use imgui_winit_support::winit::window::WindowAttributes;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use std::num::NonZeroU32;
 use std::path::Path;
 use std::time::Instant;
 
@@ -42,9 +48,52 @@ where
     let window_attributes = WindowAttributes::default()
         .with_title(title)
         .with_inner_size(LogicalSize::new(1024, 768));
-    let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
-        .set_window_builder(window_attributes)
-        .build(&event_loop);
+
+    let config_template = ConfigTemplateBuilder::new();
+    let display_builder =
+        glutin_winit::DisplayBuilder::new().with_window_attributes(Some(window_attributes));
+
+    let (window, gl_config) = display_builder
+        .build(&event_loop, config_template, |mut configs| {
+            configs.next().unwrap()
+        })
+        .unwrap();
+
+    let window = window.unwrap(); // Safe, we requested Some(window_attributes)
+
+    let context_attributes =
+        ContextAttributesBuilder::new().build(Some(window.window_handle().unwrap().as_raw()));
+
+    let not_current_gl_context = unsafe {
+        gl_config
+            .display()
+            .create_context(&gl_config, &context_attributes)
+            .unwrap()
+    };
+
+    let attrs = SurfaceAttributesBuilder::<WindowSurface>::new().build(
+        window.window_handle().unwrap().as_raw(),
+        NonZeroU32::new(1024).unwrap(),
+        NonZeroU32::new(768).unwrap(),
+    );
+
+    let surface = unsafe {
+        gl_config
+            .display()
+            .create_window_surface(&gl_config, &attrs)
+            .unwrap()
+    };
+    let gl_context = not_current_gl_context.make_current(&surface).unwrap();
+
+    surface
+        .set_swap_interval(
+            &gl_context,
+            glium::glutin::surface::SwapInterval::Wait(NonZeroU32::new(1).unwrap()),
+        )
+        .unwrap();
+
+    let display = glium::Display::from_context_surface(gl_context, surface).unwrap();
+
     let mut renderer = Renderer::new(&mut imgui, &display).expect("Failed to initialize renderer");
 
     if let Some(backend) = clipboard::init() {

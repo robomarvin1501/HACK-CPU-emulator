@@ -20,7 +20,7 @@ const SCREEN_RATIO: f32 = 2.0;
 const SCREEN_LOCATION: usize = 16384;
 const SCREEN_LENGTH: usize = 8192;
 const KBD_LOCATION: usize = 24576;
-const INSTRUCTIONS_PER_REFRESH: usize = 100_000;
+const INSTRUCTIONS_PER_REFRESH: usize = 200_000;
 
 fn main() {
     let instructions = read_arg_file();

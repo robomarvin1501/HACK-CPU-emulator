@@ -83,6 +83,8 @@ impl HackGUI {
             .resizable(true)
             .build(|| {
                 ui.child_window("Controls").size([0.0, 120.0]).build(|| {
+                    let fm = ui.io().framerate;
+                    ui.text(format!("Framerate: {}", fm));
                     let stop_ui = ui.begin_disabled(!self.running);
                     if ui.button("Stop") {
                         self.running = false;
