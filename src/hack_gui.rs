@@ -1,5 +1,5 @@
 use crate::instructions::Instruction;
-use crate::CPUState;
+use crate::{CPUState, SCREEN_RATIO};
 use crate::{
     INSTRUCTIONS_PER_REFRESH, KBD_LOCATION, MAX_INSTRUCTIONS, SCREEN_HEIGHT, SCREEN_LENGTH,
     SCREEN_LOCATION, SCREEN_WIDTH,
@@ -16,6 +16,8 @@ use imgui_glium_renderer::{Renderer, Texture};
 use std::borrow::Cow;
 use std::rc::Rc;
 use std::{error::Error, num::Wrapping, usize};
+
+const RAM_AND_ROM_WIDTH: f32 = 200.0;
 
 // Key codes
 const NEWLINE_KEY: i16 = 128;
@@ -117,11 +119,99 @@ impl HackGUI {
                 ui.separator();
 
                 ui.columns(3, "main_cols", true);
-                ui.set_column_width(0, (SCREEN_WIDTH + 10) as f32);
-                // let avail_width = ui.content_region_avail()[0];
-                // let width = avail_width.max(SCREEN_WIDTH as f32);
+                ui.set_column_width(0, RAM_AND_ROM_WIDTH);
+                ui.child_window("ROM").border(true).build(|| {
+                    ui.text("ROM");
+                    let running_ui = ui.begin_disabled(self.running);
+                    ui.text(format!("PC: {}", self.cpu.pc));
+                    let num_cols = 2;
+                    let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
+
+                    let flags = imgui::TableFlags::ROW_BG
+                        | imgui::TableFlags::RESIZABLE
+                        | imgui::TableFlags::BORDERS_H
+                        | imgui::TableFlags::BORDERS_V;
+
+                    if let Some(_t) =
+                        ui.begin_table_with_sizing("longtable", num_cols, flags, [-1.0, 0.0], 0.0)
+                    {
+                        ui.table_setup_column("");
+                        ui.table_setup_column("Instructions");
+
+                        // Freeze first row so headers are visible when scrolling
+                        ui.table_setup_scroll_freeze(num_cols, 1);
+
+                        ui.table_headers_row();
+
+                        let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                        let mut offset = 0;
+                        for row_num in clip.iter() {
+                            ui.table_next_row();
+                            ui.table_set_column_index(0);
+                            if (row_num - offset) as u16 == self.cpu.pc {
+                                ui.table_set_bg_color(
+                                    TableBgTarget::ROW_BG1,
+                                    ImColor32::from_rgb(100, 100, 0),
+                                );
+                            }
+                            match self.instructions[row_num as usize] {
+                                Instruction::Label(_) => {
+                                    offset += 1;
+                                    ui.text("");
+                                    ui.table_set_column_index(1);
+                                    ui.text(format!("{}", self.instructions[row_num as usize]));
+                                }
+                                Instruction::A(_) | Instruction::C(_) | Instruction::None => {
+                                    ui.text(format!("{}", row_num - offset));
+                                    ui.table_set_column_index(1);
+                                    ui.text(format!("{}", self.instructions[row_num as usize]));
+                                }
+                            }
+                        }
+                    }
+                    running_ui.end();
+                });
+
+                ui.next_column();
+                ui.set_column_width(1, RAM_AND_ROM_WIDTH);
+                ui.child_window("RAM").border(true).build(|| {
+                    ui.text("RAM");
+                    ui.text(format!("A: {}", self.cpu.a));
+                    let num_cols = 2;
+                    let num_rows = MAX_INSTRUCTIONS as i32;
+
+                    let flags = imgui::TableFlags::ROW_BG
+                        | imgui::TableFlags::RESIZABLE
+                        | imgui::TableFlags::BORDERS_H
+                        | imgui::TableFlags::BORDERS_V;
+
+                    if let Some(_t) =
+                        ui.begin_table_with_sizing("longtable", num_cols, flags, [-1.0, 0.0], 0.0)
+                    {
+                        ui.table_setup_column("");
+                        ui.table_setup_column("Memory");
+
+                        // Freeze first row so headers are visible when scrolling
+                        ui.table_setup_scroll_freeze(num_cols, 1);
+
+                        ui.table_headers_row();
+
+                        let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                        for row_num in clip.iter() {
+                            ui.table_next_row();
+                            ui.table_set_column_index(0);
+                            ui.text(format!("{}", row_num));
+                            ui.table_set_column_index(1);
+                            ui.text(format!("{}", self.cpu.ram[row_num as usize]));
+                        }
+                    }
+                });
+                ui.next_column();
+
+                let rem_width = ui.content_region_avail()[0];
+                let height = rem_width / SCREEN_RATIO;
                 ui.child_window("Screen pane")
-                    .size([SCREEN_WIDTH as f32, 0.0])
+                    .size([0.0, 0.0])
                     .border(true)
                     .build(|| {
                         ui.text("Screen");
@@ -147,112 +237,11 @@ impl HackGUI {
                                     raw,
                                 );
                             }
-                            Image::new(sti, [SCREEN_WIDTH as f32, SCREEN_HEIGHT as f32]).build(ui);
+                            Image::new(sti, [rem_width, height]).build(ui);
                         };
                         let running_ui = ui.begin_disabled(self.running);
                         ui.text(format!("D: {}", self.cpu.d));
                         running_ui.end();
-                    });
-
-                ui.next_column();
-                ui.child_window("ROM")
-                    .size([0.0, 0.0])
-                    .border(true)
-                    .build(|| {
-                        ui.text("ROM");
-                        let running_ui = ui.begin_disabled(self.running);
-                        ui.text(format!("PC: {}", self.cpu.pc));
-                        let num_cols = 2;
-                        let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
-
-                        let flags = imgui::TableFlags::ROW_BG
-                            | imgui::TableFlags::RESIZABLE
-                            | imgui::TableFlags::BORDERS_H
-                            | imgui::TableFlags::BORDERS_V;
-
-                        if let Some(_t) = ui.begin_table_with_sizing(
-                            "longtable",
-                            num_cols,
-                            flags,
-                            [-1.0, 0.0],
-                            0.0,
-                        ) {
-                            ui.table_setup_column("");
-                            ui.table_setup_column("Instructions");
-
-                            // Freeze first row so headers are visible when scrolling
-                            ui.table_setup_scroll_freeze(num_cols, 1);
-
-                            ui.table_headers_row();
-
-                            let clip = imgui::ListClipper::new(num_rows).begin(ui);
-                            let mut offset = 0;
-                            for row_num in clip.iter() {
-                                ui.table_next_row();
-                                ui.table_set_column_index(0);
-                                if (row_num - offset) as u16 == self.cpu.pc {
-                                    ui.table_set_bg_color(
-                                        TableBgTarget::ROW_BG1,
-                                        ImColor32::from_rgb(100, 100, 0),
-                                    );
-                                }
-                                match self.instructions[row_num as usize] {
-                                    Instruction::Label(_) => {
-                                        offset += 1;
-                                        ui.text("");
-                                        ui.table_set_column_index(1);
-                                        ui.text(format!("{}", self.instructions[row_num as usize]));
-                                    }
-                                    Instruction::A(_) | Instruction::C(_) | Instruction::None => {
-                                        ui.text(format!("{}", row_num - offset));
-                                        ui.table_set_column_index(1);
-                                        ui.text(format!("{}", self.instructions[row_num as usize]));
-                                    }
-                                }
-                            }
-                        }
-                        running_ui.end();
-                    });
-
-                ui.next_column();
-                ui.child_window("RAM")
-                    .size([0.0, 0.0])
-                    .border(true)
-                    .build(|| {
-                        ui.text("RAM");
-                        ui.text(format!("A: {}", self.cpu.a));
-                        let num_cols = 2;
-                        let num_rows = MAX_INSTRUCTIONS as i32;
-
-                        let flags = imgui::TableFlags::ROW_BG
-                            | imgui::TableFlags::RESIZABLE
-                            | imgui::TableFlags::BORDERS_H
-                            | imgui::TableFlags::BORDERS_V;
-
-                        if let Some(_t) = ui.begin_table_with_sizing(
-                            "longtable",
-                            num_cols,
-                            flags,
-                            [-1.0, 0.0],
-                            0.0,
-                        ) {
-                            ui.table_setup_column("");
-                            ui.table_setup_column("Memory");
-
-                            // Freeze first row so headers are visible when scrolling
-                            ui.table_setup_scroll_freeze(num_cols, 1);
-
-                            ui.table_headers_row();
-
-                            let clip = imgui::ListClipper::new(num_rows).begin(ui);
-                            for row_num in clip.iter() {
-                                ui.table_next_row();
-                                ui.table_set_column_index(0);
-                                ui.text(format!("{}", row_num));
-                                ui.table_set_column_index(1);
-                                ui.text(format!("{}", self.cpu.ram[row_num as usize]));
-                            }
-                        }
                     });
             });
     }

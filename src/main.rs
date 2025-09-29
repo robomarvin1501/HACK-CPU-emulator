@@ -16,6 +16,7 @@ mod support;
 const ASM_FILE_EXTENSION: &'static str = "asm";
 const SCREEN_WIDTH: usize = 512;
 const SCREEN_HEIGHT: usize = 256;
+const SCREEN_RATIO: f32 = 2.0;
 const SCREEN_LOCATION: usize = 16384;
 const SCREEN_LENGTH: usize = 8192;
 const KBD_LOCATION: usize = 24576;
