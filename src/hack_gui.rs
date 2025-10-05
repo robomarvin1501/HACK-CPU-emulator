@@ -125,7 +125,13 @@ impl HackGUI {
                 ui.child_window("ROM").border(true).build(|| {
                     ui.text("ROM");
                     let running_ui = ui.begin_disabled(self.running);
-                    ui.text(format!("PC: {}", self.cpu.pc));
+                    let val = &mut self.cpu.pc;
+                    let mut temp = *val as i32;
+                    ui.text("PC: ");
+                    ui.same_line();
+                    if ui.input_int("##pc", &mut temp).build() {
+                        *val = temp as _;
+                    }
                     let num_cols = 2;
                     let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
 
@@ -178,7 +184,14 @@ impl HackGUI {
                 ui.set_column_width(1, RAM_AND_ROM_WIDTH);
                 ui.child_window("RAM").border(true).build(|| {
                     ui.text("RAM");
-                    ui.text(format!("A: {}", self.cpu.a));
+                    let running_ui = ui.begin_disabled(self.running);
+                    let val = &mut self.cpu.a.0;
+                    let mut temp = *val as i32;
+                    ui.text("A: ");
+                    ui.same_line();
+                    if ui.input_int("##a", &mut temp).build() {
+                        *val = temp as _;
+                    }
                     let num_cols = 2;
                     let num_rows = MAX_INSTRUCTIONS as i32;
 
@@ -203,16 +216,22 @@ impl HackGUI {
                             ui.table_next_row();
                             ui.table_set_column_index(0);
                             ui.text(format!("{}", row_num));
+                            if !self.running && row_num == self.cpu.a.0 as i32 {
+                                ui.table_set_bg_color(
+                                    TableBgTarget::ROW_BG1,
+                                    ImColor32::from_rgb(100, 100, 0),
+                                );
+                            }
 
                             ui.table_set_column_index(1);
                             let val = &mut self.cpu.ram[row_num as usize].0;
                             let mut temp = *val as i32;
                             if ui.input_int(format!("##ram{}", row_num), &mut temp).build() {
-                                dbg!(&temp);
                                 *val = temp as _;
                             }
                         }
                     }
+                    running_ui.end();
                 });
                 ui.next_column();
 
@@ -248,7 +267,13 @@ impl HackGUI {
                             Image::new(sti, [rem_width, height]).build(ui);
                         };
                         let running_ui = ui.begin_disabled(self.running);
-                        ui.text(format!("D: {}", self.cpu.d));
+                        let val = &mut self.cpu.d.0;
+                        let mut temp = *val as i32;
+                        ui.text("D: ");
+                        ui.same_line();
+                        if ui.input_int("##d", &mut temp).build() {
+                            *val = temp as _;
+                        }
                         running_ui.end();
                     });
             });

@@ -6,6 +6,7 @@ use glium::glutin::context::ContextAttributesBuilder;
 use glium::glutin::display::GetGlDisplay;
 use glium::glutin::prelude::{GlDisplay, NotCurrentGlContext};
 use glium::glutin::surface::{GlSurface, SurfaceAttributesBuilder, WindowSurface};
+use glium::winit::event::DeviceId;
 use glium::winit::keyboard::Key;
 use glium::winit::raw_window_handle::HasWindowHandle;
 use glium::{Display, Surface};
@@ -125,64 +126,67 @@ where
 
     #[allow(deprecated)]
     event_loop
-        .run(move |event, window_target| match event {
-            Event::NewEvents(_) => {
-                let now = Instant::now();
-                imgui.io_mut().update_delta_time(now - last_frame);
-                last_frame = now;
-            }
-            Event::AboutToWait => {
-                platform
-                    .prepare_frame(imgui.io_mut(), &window)
-                    .expect("Failed to prepare frame");
-                window.request_redraw();
-            }
-            Event::WindowEvent {
-                event: WindowEvent::RedrawRequested,
-                ..
-            } => {
-                let ui = imgui.frame();
+        .run(move |event, window_target| {
+            platform.handle_event(imgui.io_mut(), &window, &event);
+            match event {
+                Event::NewEvents(_) => {
+                    let now = Instant::now();
+                    imgui.io_mut().update_delta_time(now - last_frame);
+                    last_frame = now;
+                }
+                Event::AboutToWait => {
+                    platform
+                        .prepare_frame(imgui.io_mut(), &window)
+                        .expect("Failed to prepare frame");
+                    window.request_redraw();
+                }
+                Event::WindowEvent {
+                    event: WindowEvent::RedrawRequested,
+                    ..
+                } => {
+                    let ui = imgui.frame();
 
-                let mut run = true;
-                run_ui(&mut run, ui, &mut renderer, &key_pressed);
-                if !run {
-                    window_target.exit();
-                }
+                    let mut run = true;
+                    run_ui(&mut run, ui, &mut renderer, &key_pressed);
+                    if !run {
+                        window_target.exit();
+                    }
 
-                let mut target = display.draw();
-                target.clear_color_srgb(1.0, 1.0, 1.0, 1.0);
-                platform.prepare_render(ui, &window);
-                let draw_data = imgui.render();
-                renderer
-                    .render(&mut target, draw_data)
-                    .expect("Rendering failed");
-                target.finish().expect("Failed to swap buffers");
-            }
-            Event::WindowEvent {
-                event: WindowEvent::Resized(new_size),
-                ..
-            } => {
-                if new_size.width > 0 && new_size.height > 0 {
-                    display.resize((new_size.width, new_size.height));
+                    let mut target = display.draw();
+                    target.clear_color_srgb(1.0, 1.0, 1.0, 1.0);
+                    platform.prepare_render(ui, &window);
+                    let draw_data = imgui.render();
+                    renderer
+                        .render(&mut target, draw_data)
+                        .expect("Rendering failed");
+                    target.finish().expect("Failed to swap buffers");
                 }
-                platform.handle_event(imgui.io_mut(), &window, &event);
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => window_target.exit(),
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { event, .. },
-                ..
-            } => {
-                let key = event.logical_key;
-                match event.state {
-                    glium::winit::event::ElementState::Pressed => key_pressed = Some(key),
-                    glium::winit::event::ElementState::Released => key_pressed = None,
+                Event::WindowEvent {
+                    event: WindowEvent::Resized(new_size),
+                    ..
+                } => {
+                    if new_size.width > 0 && new_size.height > 0 {
+                        display.resize((new_size.width, new_size.height));
+                    }
+                    platform.handle_event(imgui.io_mut(), &window, &event);
                 }
-            }
-            event => {
-                platform.handle_event(imgui.io_mut(), &window, &event);
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    ..
+                } => window_target.exit(),
+                Event::WindowEvent {
+                    event: WindowEvent::KeyboardInput { event, .. },
+                    ..
+                } => {
+                    let key = event.logical_key.clone();
+                    match event.state {
+                        glium::winit::event::ElementState::Pressed => key_pressed = Some(key),
+                        glium::winit::event::ElementState::Released => key_pressed = None,
+                    }
+                }
+                event => {
+                    platform.handle_event(imgui.io_mut(), &window, &event);
+                }
             }
         })
         .expect("EventLoop error");
