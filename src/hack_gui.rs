@@ -17,7 +17,7 @@ use std::borrow::Cow;
 use std::rc::Rc;
 use std::{error::Error, num::Wrapping, usize};
 
-const RAM_AND_ROM_WIDTH: f32 = 200.0;
+const RAM_AND_ROM_WIDTH: f32 = 350.0;
 
 // Key codes
 const NEWLINE_KEY: i16 = 128;
@@ -203,8 +203,14 @@ impl HackGUI {
                             ui.table_next_row();
                             ui.table_set_column_index(0);
                             ui.text(format!("{}", row_num));
+
                             ui.table_set_column_index(1);
-                            ui.text(format!("{}", self.cpu.ram[row_num as usize]));
+                            let val = &mut self.cpu.ram[row_num as usize].0;
+                            let mut temp = *val as i32;
+                            if ui.input_int(format!("##ram{}", row_num), &mut temp).build() {
+                                dbg!(&temp);
+                                *val = temp as _;
+                            }
                         }
                     }
                 });
