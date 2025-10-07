@@ -1,3 +1,4 @@
+use crate::debug::Breakpoint;
 use crate::instructions::{Comp, Destination, Instruction, Jump, A, C};
 use crate::symbol_table;
 use crate::MAX_INSTRUCTIONS;
@@ -14,6 +15,7 @@ pub struct CPUState {
     pub pc: u16,
     pub ram: [Wrapping<i16>; MAX_INSTRUCTIONS],
     pub address_table: symbol_table::SymbolTable,
+    pub breakpoints: Vec<Breakpoint>,
 }
 
 impl CPUState {
@@ -24,6 +26,7 @@ impl CPUState {
             pc: 0,
             ram: std::array::from_fn(|_| Wrapping(0)),
             address_table: symbol_table::SymbolTable::new(),
+            breakpoints: vec![],
         }
     }
 

@@ -9,6 +9,7 @@ mod parser;
 mod symbol_table;
 use glium::backend::Facade;
 
+mod debug;
 mod hack_cpu;
 mod hack_gui;
 mod support;
@@ -36,13 +37,12 @@ fn main() {
         })
         .count();
 
-    let cpu_display = std::rc::Rc::new(std::cell::RefCell::new(HackGUI {
-        screen_texture_id: None,
-        cpu: state,
-        instructions: instructions,
-        num_labels: num_labels,
-        running: false,
-    }));
+    let cpu_display = std::rc::Rc::new(std::cell::RefCell::new(HackGUI::new(
+        None,
+        state,
+        instructions,
+        num_labels,
+    )));
     let cpu_display_clone = cpu_display.clone();
 
     support::init_with_startup(

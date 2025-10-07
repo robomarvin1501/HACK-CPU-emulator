@@ -6,7 +6,6 @@ use glium::glutin::context::ContextAttributesBuilder;
 use glium::glutin::display::GetGlDisplay;
 use glium::glutin::prelude::{GlDisplay, NotCurrentGlContext};
 use glium::glutin::surface::{GlSurface, SurfaceAttributesBuilder, WindowSurface};
-use glium::winit::event::DeviceId;
 use glium::winit::keyboard::Key;
 use glium::winit::raw_window_handle::HasWindowHandle;
 use glium::{Display, Surface};
