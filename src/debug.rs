@@ -1,6 +1,6 @@
 use imgui::Ui;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Breakpoint {
     A(i16),
     D(i16),
@@ -25,7 +25,12 @@ impl Breakpoint {
             }
         }
         ui.same_line();
-        ui.button("Remove")
+        match self {
+            Breakpoint::A(v) => ui.button(format!("Remove##A{v}")),
+            Breakpoint::D(v) => ui.button(format!("Remove##D{v}")),
+            Breakpoint::PC(v) => ui.button(format!("Remove##PC{v}")),
+            Breakpoint::RAM(n, v) => ui.button(format!("Remove##RAM{n}{v}")),
+        }
     }
 }
 

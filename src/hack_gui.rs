@@ -134,6 +134,7 @@ impl HackGUI {
 
                         if self.running {
                             'instructions: for _ in 0..INSTRUCTIONS_PER_REFRESH {
+                                self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
                                 for breakpoint in &self.cpu.breakpoints {
                                     match breakpoint {
                                         Breakpoint::A(v) => {
@@ -162,7 +163,6 @@ impl HackGUI {
                                         }
                                     }
                                 }
-                                self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
                             }
                             if let Some(kbd_letter) = key {
                                 self.cpu.ram[KBD_LOCATION] = get_keycode(kbd_letter);
@@ -245,18 +245,23 @@ impl HackGUI {
                             if ui.button("Add breakpoint") {
                                 match bs {
                                     BreakpointSelector::A => {
-                                        self.cpu.breakpoints.push(Breakpoint::A(self.adram_value));
-                                    }
-                                    BreakpointSelector::D => {
-                                        self.cpu.breakpoints.push(Breakpoint::D(self.adram_value));
-                                    }
-                                    BreakpointSelector::PC => {
-                                        self.cpu.breakpoints.push(Breakpoint::PC(self.pcvalue));
-                                    }
-                                    BreakpointSelector::RAM => {
                                         self.cpu
                                             .breakpoints
-                                            .push(Breakpoint::RAM(self.pcvalue, self.adram_value));
+                                            .insert(Breakpoint::A(self.adram_value));
+                                    }
+                                    BreakpointSelector::D => {
+                                        self.cpu
+                                            .breakpoints
+                                            .insert(Breakpoint::D(self.adram_value));
+                                    }
+                                    BreakpointSelector::PC => {
+                                        self.cpu.breakpoints.insert(Breakpoint::PC(self.pcvalue));
+                                    }
+                                    BreakpointSelector::RAM => {
+                                        self.cpu.breakpoints.insert(Breakpoint::RAM(
+                                            self.pcvalue,
+                                            self.adram_value,
+                                        ));
                                     }
                                 }
                                 self.adram_value = 0;
@@ -438,15 +443,14 @@ impl HackGUI {
                             .child_flags(ChildFlags::BORDERS)
                             .build(|| {
                                 ui.text("Breakpoints");
-                                let mut remove_indices = vec![];
-                                for (i, breakpoint) in self.cpu.breakpoints.iter().enumerate() {
+                                let mut to_remove: Vec<Breakpoint> = vec![];
+                                for breakpoint in self.cpu.breakpoints.iter() {
                                     if breakpoint.display(&ui) {
-                                        remove_indices.push(i);
+                                        to_remove.push(*breakpoint);
                                     }
                                 }
-                                remove_indices.reverse();
-                                for ind in remove_indices {
-                                    self.cpu.breakpoints.remove(ind);
+                                for breakpoint in to_remove {
+                                    self.cpu.breakpoints.remove(&breakpoint);
                                 }
                             })
                     });
