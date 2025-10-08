@@ -156,4 +156,7 @@ impl CPUState {
             Jump::JMP => self.a.0 as u16,
         };
     }
+    pub fn reset_ram(self: &mut Self) {
+        self.ram.iter_mut().for_each(|x| *x = Wrapping(0));
+    }
 }

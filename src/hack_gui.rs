@@ -344,6 +344,10 @@ impl HackGUI {
                     .build(|| {
                         ui.text("RAM");
                         let running_ui = ui.begin_disabled(self.running);
+                        ui.same_line();
+                        if ui.button("Reset##RAM") {
+                            self.cpu.reset_ram();
+                        }
                         let val = &mut self.cpu.a.0;
                         let mut temp = *val as i32;
                         ui.text("A: ");
@@ -429,9 +433,13 @@ impl HackGUI {
                             }
                             Image::new(sti, [rem_width, height]).build(ui);
                         };
-                        if let Some(keyboard_press) = key {
-                            if let Some(name) = get_keyname(keyboard_press) {
-                                ui.text(format!("Keyboard: {}", name));
+                        if self.running {
+                            if let Some(keyboard_press) = key {
+                                if let Some(name) = get_keyname(keyboard_press) {
+                                    ui.text(format!("Keyboard: {}", name));
+                                }
+                            } else {
+                                ui.text("Keyboard: ");
                             }
                         } else {
                             ui.text("Keyboard: ");
