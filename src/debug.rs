@@ -1,5 +1,9 @@
 use imgui::Ui;
 
+use crate::hack_cpu::CPUState;
+
+const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Breakpoint {
     A(i16),
@@ -9,19 +13,39 @@ pub enum Breakpoint {
 }
 
 impl Breakpoint {
-    pub fn display(self: &Self, ui: &Ui) -> bool {
+    pub fn display(self: &Self, ui: &Ui, cpustate: &CPUState) -> bool {
         match self {
             Breakpoint::A(v) => {
-                ui.text(format!("A: {v}"));
+                let text = format!("A: {v}");
+                if &cpustate.a.0 == v {
+                    ui.text_colored(RED, text);
+                } else {
+                    ui.text(text);
+                }
             }
             Breakpoint::D(v) => {
-                ui.text(format!("D: {v}"));
+                let text = format!("D: {v}");
+                if &cpustate.d.0 == v {
+                    ui.text_colored(RED, text);
+                } else {
+                    ui.text(text);
+                }
             }
             Breakpoint::PC(v) => {
-                ui.text(format!("PC: {v}"));
+                let text = format!("PC: {v}");
+                if &cpustate.pc == v {
+                    ui.text_colored(RED, text);
+                } else {
+                    ui.text(text);
+                }
             }
             Breakpoint::RAM(n, v) => {
-                ui.text(format!("RAM[{n}]: {v}"));
+                let text = format!("RAM[{n}]: {v}");
+                if &cpustate.ram[*n as usize].0 == v {
+                    ui.text_colored(RED, text);
+                } else {
+                    ui.text(text);
+                }
             }
         }
         ui.same_line();

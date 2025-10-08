@@ -429,6 +429,13 @@ impl HackGUI {
                             }
                             Image::new(sti, [rem_width, height]).build(ui);
                         };
+                        if let Some(keyboard_press) = key {
+                            if let Some(name) = get_keyname(keyboard_press) {
+                                ui.text(format!("Keyboard: {}", name));
+                            }
+                        } else {
+                            ui.text("Keyboard: ");
+                        }
                         let running_ui = ui.begin_disabled(self.running);
                         let val = &mut self.cpu.d.0;
                         let mut temp = *val as i32;
@@ -445,7 +452,7 @@ impl HackGUI {
                                 ui.text("Breakpoints");
                                 let mut to_remove: Vec<Breakpoint> = vec![];
                                 for breakpoint in self.cpu.breakpoints.iter() {
-                                    if breakpoint.display(&ui) {
+                                    if breakpoint.display(&ui, &self.cpu) {
                                         to_remove.push(*breakpoint);
                                     }
                                 }
@@ -565,5 +572,49 @@ fn get_keycode(key: &Key) -> Wrapping<i16> {
             _ => Wrapping(0),
         },
         _ => Wrapping(0),
+    }
+}
+
+fn get_keyname(key: &Key) -> Option<String> {
+    match key.to_owned() {
+        Key::Character(c) => {
+            if c.len() == 1 {
+                Some(c.chars().next().unwrap().to_string())
+            } else {
+                // Should not occur
+                None
+            }
+        }
+        Key::Named(n) => match n {
+            NamedKey::Space => Some(String::from("Space")),
+            NamedKey::Backspace => Some(String::from("Backspace")),
+            NamedKey::Enter => Some(String::from("Enter")),
+            NamedKey::Escape => Some(String::from("Escape")),
+            NamedKey::Delete => Some(String::from("Delete")),
+            NamedKey::ArrowLeft => Some(String::from("Left Arrow")),
+            NamedKey::ArrowRight => Some(String::from("Right Arrow")),
+            NamedKey::ArrowUp => Some(String::from("Up Arrow")),
+            NamedKey::ArrowDown => Some(String::from("Down Arrow")),
+            NamedKey::PageUp => Some(String::from("Page Up")),
+            NamedKey::PageDown => Some(String::from("Page Down")),
+            NamedKey::Home => Some(String::from("Home")),
+            NamedKey::End => Some(String::from("End")),
+            NamedKey::F1 => Some(String::from("F1")),
+            NamedKey::F2 => Some(String::from("F2")),
+            NamedKey::F3 => Some(String::from("F3")),
+            NamedKey::F4 => Some(String::from("F4")),
+            NamedKey::F5 => Some(String::from("F5")),
+            NamedKey::F6 => Some(String::from("F6")),
+            NamedKey::F7 => Some(String::from("F7")),
+            NamedKey::F8 => Some(String::from("F8")),
+            NamedKey::F9 => Some(String::from("F9")),
+            NamedKey::F10 => Some(String::from("F10")),
+            NamedKey::F11 => Some(String::from("F11")),
+            NamedKey::F12 => Some(String::from("F12")),
+            NamedKey::Insert => Some(String::from("Insert")),
+            NamedKey::Shift => Some(String::from("Shift")),
+            _ => None,
+        },
+        _ => None,
     }
 }
