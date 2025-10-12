@@ -1,7 +1,8 @@
 use core::fmt;
 
-// Label is never constructed, but left for the future, since there is an intention to show the
-// labels in the emulator
+/// Represents the different kinds of instructions that are run on the CPU.
+/// Label is never constructed, but left for the future, since there is an intention to show the
+/// labels in the emulator
 #[allow(dead_code)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum Instruction {
@@ -22,11 +23,13 @@ impl fmt::Display for Instruction {
     }
 }
 
+/// Represents an A(ddress) instruction. This sets the A register to some 15 bit value.
 #[derive(Debug, PartialEq, Eq)]
 pub struct A {
     pub dest: i16,
 }
 impl A {
+    /// Create a new [A] instruction from an input string. Useful for building from source files.
     pub fn new(dest: &str) -> Self {
         Self {
             dest: match dest.parse::<i16>() {
@@ -43,6 +46,7 @@ impl fmt::Display for A {
     }
 }
 
+/// Represents the destination in which the computed value of a [C] instruction should be stored.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Destination {
     None,
@@ -56,6 +60,7 @@ pub enum Destination {
 }
 
 impl Destination {
+    /// Create a new destination for a [C] instruction.
     fn new(dest: &str) -> Destination {
         match dest {
             "" => Destination::None,
@@ -87,6 +92,8 @@ impl fmt::Display for Destination {
     }
 }
 
+/// Stores the target location to which a [C] instruction should jump upon completion. [None]
+/// indicates that no jump will take place, but rather the program counter will be incremented by 1.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Jump {
     None,
@@ -100,6 +107,7 @@ pub enum Jump {
 }
 
 impl Jump {
+    /// Create a new jump location for a [C] instruction
     fn new(jump: &str) -> Jump {
         match jump {
             "" => Jump::None,
@@ -131,6 +139,7 @@ impl fmt::Display for Jump {
     }
 }
 
+/// Stores the type of computation that should be carried out by a [C] instruction.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Comp {
     Zero,
@@ -172,6 +181,7 @@ pub enum Comp {
 }
 
 impl Comp {
+    /// Create a new computation for a [C] instruction.
     fn new(comp: &str) -> Comp {
         match comp {
             "0" => Comp::Zero,
@@ -263,6 +273,8 @@ impl fmt::Display for Comp {
     }
 }
 
+/// Represents a C(ompute) instruction. These do 3 things, they compute (comp) something, and store
+/// it in dest, followed by a jump to another location.
 #[derive(Debug, PartialEq, Eq)]
 pub struct C {
     pub dest: Destination,
@@ -271,6 +283,7 @@ pub struct C {
 }
 
 impl C {
+    /// Create a new [C] instruction based off the inputs from the source file.
     pub fn new(dest: &str, comp: &str, jump: &str) -> Self {
         Self {
             dest: Destination::new(dest),

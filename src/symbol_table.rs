@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+/// Represents the symbol table used for translating A instructions from names to locations in the
+/// RAM.
 #[derive(Debug)]
 pub struct SymbolTable {
     pub table: HashMap<String, u16>,
@@ -7,6 +9,12 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
+    /// Creates a new symbol table. Includes various default values from the specification, such as
+    /// register locations, the screen, the keyboard, and so on.
+    /// # Example
+    /// ```
+    /// let symbol_table = SymbolTable::new();
+    /// ```
     pub fn new() -> Self {
         let t: HashMap<String, u16> = HashMap::from([
             (String::from("R0"), 0),

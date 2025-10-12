@@ -4,6 +4,10 @@ use crate::hack_cpu::CPUState;
 
 pub const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 
+/// Represents a portion of the [CPUState], at which we can then instruct the execution to halt. This is
+/// designed to be useful for debugging programs when running them on the emulator. The 4 different
+/// enumerations depict the 4 different states that may be of interest, the 3 registers, and a
+/// specific RAM address.
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Breakpoint {
     A(i16),
@@ -13,6 +17,9 @@ pub enum Breakpoint {
 }
 
 impl Breakpoint {
+    /// Draws the breakpoint, along with a `remove` button, to the list of breakpoints in the GUI.
+    /// The returning of a boolean is designed to inform whether or not the `remove` button has
+    /// been clicked.
     pub fn display(self: &Self, ui: &Ui, cpustate: &CPUState) -> bool {
         match self {
             Breakpoint::A(v) => {
@@ -58,6 +65,8 @@ impl Breakpoint {
     }
 }
 
+/// Represents a choice between the possible [Breakpoint]s. This is used for a radio button when
+/// construction a new [Breakpoint].
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BreakpointSelector {
     A,

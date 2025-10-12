@@ -1,7 +1,7 @@
 use crate::debug::Breakpoint;
 use crate::instructions::{Comp, Destination, Instruction, Jump, A, C};
+use crate::parser::MAX_RAM;
 use crate::symbol_table;
-use crate::MAX_INSTRUCTIONS;
 use std::collections::HashSet;
 use std::{
     num::Wrapping,
@@ -9,17 +9,25 @@ use std::{
     usize,
 };
 
+/// Represents the HACK CPU state, including the 3 registers, and the RAM. It additionally stores
+/// the [symbol_table::SymbolTable] (also known as an address table, useful for the labels in the program code) and
+/// the [Breakpoint]s (used for debugging programs).
 #[derive(Debug)]
 pub struct CPUState {
     pub a: Wrapping<i16>,
     pub d: Wrapping<i16>,
     pub pc: u16,
-    pub ram: [Wrapping<i16>; MAX_INSTRUCTIONS],
+    pub ram: [Wrapping<i16>; MAX_RAM],
     pub address_table: symbol_table::SymbolTable,
     pub breakpoints: HashSet<Breakpoint>,
 }
 
 impl CPUState {
+    /// Creates a CPU, with default starting states.
+    /// # Example
+    /// ```
+    /// let cpu = CPUState::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             a: Wrapping(0),
@@ -31,10 +39,13 @@ impl CPUState {
         }
     }
 
+    /// Resets the symbol table. This is necessary when replacing the ROM instructions with a new
+    /// program
     pub fn reset_address_table(self: &mut Self) {
         self.address_table = symbol_table::SymbolTable::new();
     }
 
+    /// Executes the next instruction, according to the program counter (PC) register
     pub fn interpret(self: &mut Self, instruction: &Instruction) {
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),
@@ -43,11 +54,13 @@ impl CPUState {
         }
     }
 
+    /// Executes an A instruction
     fn a_instruction(self: &mut Self, a: &A) {
         self.a = Wrapping(a.dest);
         self.pc += 1;
     }
 
+    /// Executes a C instruction
     fn c_instruction(self: &mut Self, c: &C) {
         let answer: Wrapping<i16> = match c.comp {
             Comp::Zero => Wrapping(0),
@@ -160,6 +173,8 @@ impl CPUState {
             Jump::JMP => self.a.0 as u16,
         };
     }
+
+    /// Resets the RAM of the CPU to be all zeroes once more
     pub fn reset_ram(self: &mut Self) {
         self.ram.iter_mut().for_each(|x| *x = Wrapping(0));
     }

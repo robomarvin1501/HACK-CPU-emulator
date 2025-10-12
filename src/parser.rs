@@ -10,8 +10,10 @@ const LABEL_BEGIN: char = '(';
 const LABEL_END: char = ')';
 const VARIABLE_DECLARATION: char = '@';
 
-pub const MAX_INSTRUCTIONS: usize = 32768;
+pub const MAX_INSTRUCTIONS: usize = i16::MAX as usize;
+pub const MAX_RAM: usize = 24576;
 
+/// Represents an invalid line in the source code. Used for showing the user the error.
 #[derive(Debug)]
 pub enum LineParsingError {
     InvalidLine(u16, String),
@@ -22,6 +24,7 @@ impl fmt::Display for LineParsingError {
     }
 }
 
+/// Parses a series of lines that make up the source code for the program to be run.
 pub fn parse(
     lines: [String; MAX_INSTRUCTIONS],
     address_table: &mut SymbolTable,
@@ -70,11 +73,14 @@ pub fn parse(
     Ok(parsed_lines)
 }
 
+/// Given a line which appears to be a C instruction, it splits the line on the chars that
+/// delineate the parts of C instructions.
 fn split_line(line: &String) -> Vec<&str> {
     let re = Regex::new(r"[ ,=;]").unwrap();
     re.split(line).collect()
 }
 
+/// Clears whitespace out of provided source code. Whitespace includes empty lines, and comments.
 fn clear_whitespace(lines: [String; MAX_INSTRUCTIONS]) -> [String; MAX_INSTRUCTIONS] {
     let mut whitespace_cleaned_lines: [String; MAX_INSTRUCTIONS] =
         [const { String::new() }; MAX_INSTRUCTIONS];
@@ -92,6 +98,8 @@ fn clear_whitespace(lines: [String; MAX_INSTRUCTIONS]) -> [String; MAX_INSTRUCTI
     whitespace_cleaned_lines
 }
 
+/// Given the source code, this scans it for labels and variables, and stores them, and their
+/// representative addresses in the [SymbolTable].
 fn labels_and_variables(lines: &[String; MAX_INSTRUCTIONS], address_table: &mut SymbolTable) {
     let mut labels_count: u16 = 0;
     // Add labels to address_table
