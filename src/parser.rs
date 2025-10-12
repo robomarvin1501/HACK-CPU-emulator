@@ -11,7 +11,7 @@ const LABEL_END: char = ')';
 const VARIABLE_DECLARATION: char = '@';
 
 pub const MAX_INSTRUCTIONS: usize = i16::MAX as usize;
-pub const MAX_RAM: usize = 24576;
+pub const MAX_RAM: usize = 24577;
 
 /// Represents an invalid line in the source code. Used for showing the user the error.
 #[derive(Debug)]
