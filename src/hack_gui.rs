@@ -1,6 +1,7 @@
-use crate::debug::{Breakpoint, BreakpointSelector};
+use crate::debug::{Breakpoint, BreakpointSelector, RED};
 use crate::instructions::Instruction;
-use crate::{CPUState, SCREEN_RATIO};
+use crate::parser::{parse, LineParsingError};
+use crate::{CPUState, ASM_FILE_EXTENSION, SCREEN_RATIO};
 use crate::{
     INSTRUCTIONS_PER_REFRESH, KBD_LOCATION, MAX_INSTRUCTIONS, SCREEN_HEIGHT, SCREEN_LENGTH,
     SCREEN_LOCATION, SCREEN_WIDTH,
@@ -14,12 +15,16 @@ use glium::{
 };
 use imgui::*;
 use imgui_glium_renderer::{Renderer, Texture};
+use rfd::FileDialog;
 use std::borrow::Cow;
+use std::path::PathBuf;
 use std::rc::Rc;
+use std::{env, fs};
 use std::{error::Error, num::Wrapping, usize};
 
 const RAM_AND_ROM_WIDTH: f32 = 350.0;
 const CONTROL_WINDOW_HEIGHT: f32 = 155.0;
+const DEBUG_BOX_SIZE: f32 = 60.0;
 
 // Key codes
 const NEWLINE_KEY: i16 = 128;
@@ -57,6 +62,8 @@ pub struct HackGUI {
     next_breakpoint: Option<BreakpointSelector>,
     adram_value: i16,
     pcvalue: u16,
+    program_error: Option<LineParsingError>,
+    last_dir: PathBuf,
 }
 
 impl HackGUI {
@@ -75,6 +82,8 @@ impl HackGUI {
             next_breakpoint: None,
             adram_value: 0,
             pcvalue: 0,
+            program_error: None,
+            last_dir: env::current_dir().unwrap(),
         }
     }
     pub fn register_textures<F>(
@@ -96,9 +105,9 @@ impl HackGUI {
     }
 
     pub fn show_textures(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
-        let [screen_width, screen_height] = ui.io().display_size;
+        let [window_width, window_height] = ui.io().display_size;
         ui.window("CPU Emulator")
-            .size([screen_width, screen_height], Condition::Always)
+            .size([window_width, window_height], Condition::Always)
             .position([0.0, 0.0], Condition::Always)
             .movable(false)
             .collapsible(false)
@@ -106,7 +115,7 @@ impl HackGUI {
             .build(|| {
                 ui.columns(2, "control_cols", true);
                 ui.child_window("Controls")
-                    .size([0.0, CONTROL_WINDOW_HEIGHT])
+                    .size([window_width / 2.0, CONTROL_WINDOW_HEIGHT])
                     .build(|| {
                         let fm = ui.io().framerate;
                         ui.text(format!("Framerate: {}", fm));
@@ -116,6 +125,36 @@ impl HackGUI {
                         }
                         stop_ui.end();
                         let running_ui = ui.begin_disabled(self.running);
+                        ui.same_line();
+                        if ui.button("Open") {
+                            let file = FileDialog::new()
+                                .add_filter("asm", &[ASM_FILE_EXTENSION])
+                                .set_directory(&self.last_dir)
+                                .pick_file();
+                            if let Some(input_path) = file {
+                                self.last_dir = input_path.parent().unwrap().to_path_buf();
+                                let contents: String = fs::read_to_string(input_path)
+                                    .expect("Should have been able to read file");
+                                let instructions: Vec<String> =
+                                    contents.split("\n").map(|s| s.trim().to_string()).collect();
+                                if instructions.len() > MAX_INSTRUCTIONS {
+                                    ui.window("too_many_instructions").bring_to_front_on_focus(true).focused(true).build(|| {
+                                        ui.text_colored(RED, format!("TOO MANY INSTRUCTIONS, EXPECTED A MAXIMUM OF {MAX_INSTRUCTIONS}, GOT {}", instructions.len()));
+                                    });
+                                } else {
+                                    let mut ret: [String; MAX_INSTRUCTIONS] =
+                                        [const { String::new() }; MAX_INSTRUCTIONS];
+                                    for (i, instruction) in instructions.iter().enumerate() {
+                                        ret[i] = instruction.to_string();
+                                    }
+
+                                    match self.new_program(ret) {
+                                        Ok(_) => {self.program_error = None},
+                                        Err(e) => {self.program_error = Some(e);},
+                                    };
+                                }
+                            }
+                        }
                         if ui.button("Run") {
                             self.running = true;
                         }
@@ -134,6 +173,11 @@ impl HackGUI {
 
                         if self.running {
                             'instructions: for _ in 0..INSTRUCTIONS_PER_REFRESH {
+                                if self.cpu.pc >= MAX_INSTRUCTIONS as u16 {
+                                    self.running = false;
+                                    self.cpu.pc = MAX_INSTRUCTIONS as u16 - 1;
+                                    break;
+                                }
                                 self.cpu.interpret(&self.instructions[self.cpu.pc as usize]);
                                 for breakpoint in &self.cpu.breakpoints {
                                     match breakpoint {
@@ -173,7 +217,7 @@ impl HackGUI {
                     });
                 ui.next_column();
                 ui.child_window("Debug")
-                    .size([0.0, CONTROL_WINDOW_HEIGHT])
+                    .size([window_width / 2.0 , CONTROL_WINDOW_HEIGHT])
                     .build(|| {
                         ui.text("Debug");
                         ui.radio_button(
@@ -202,6 +246,7 @@ impl HackGUI {
                                 BreakpointSelector::A => {
                                     ui.text("A: ");
                                     ui.same_line();
+                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
                                     let val = &mut self.adram_value;
                                     let mut temp = *val as i32;
                                     if ui.input_int("##input_a", &mut temp).build() {
@@ -211,6 +256,7 @@ impl HackGUI {
                                 BreakpointSelector::D => {
                                     ui.text("D: ");
                                     ui.same_line();
+                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
                                     let val = &mut self.adram_value;
                                     let mut temp = *val as i32;
                                     if ui.input_int("##input_d", &mut temp).build() {
@@ -220,6 +266,7 @@ impl HackGUI {
                                 BreakpointSelector::PC => {
                                     ui.text("PC: ");
                                     ui.same_line();
+                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
                                     let val = &mut self.pcvalue;
                                     let mut temp = *val as i32;
                                     if ui.input_int("##input_pc", &mut temp).build() {
@@ -229,12 +276,14 @@ impl HackGUI {
                                 BreakpointSelector::RAM => {
                                     ui.text("RAM: ");
                                     ui.same_line();
+                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
                                     let val = &mut self.pcvalue;
                                     let mut temp = *val as i32;
                                     if ui.input_int("##input_ram_target", &mut temp).build() {
                                         *val = temp as _;
                                     }
                                     ui.same_line();
+                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
                                     let val = &mut self.adram_value;
                                     let mut temp = *val as i32;
                                     if ui.input_int("##input_ram_value", &mut temp).build() {
@@ -469,7 +518,44 @@ impl HackGUI {
                                 }
                             })
                     });
+                if let Some(e) = &self.program_error {
+                    match e {
+                        LineParsingError::InvalidLine(line_number, line) => {
+                        ui.window("Error")
+            .size([0.0, 0.0], Condition::Always)
+            .position([window_width / 2.0, window_height / 2.0], Condition::Always)
+            .movable(false)
+            .collapsible(false)
+            .resizable(true)
+                            .build(|| {
+                        ui.text_colored(RED, format!("ERROR READING PROGRAM: Error in program at line {}: {}", line_number, line));
+                                }
+                        );}
+                    };
+                }
             });
+    }
+
+    pub fn new_program(
+        self: &mut Self,
+        instructions: [String; MAX_INSTRUCTIONS],
+    ) -> Result<bool, LineParsingError> {
+        self.cpu.reset_address_table();
+
+        let instructions = parse(instructions, &mut self.cpu.address_table)?;
+
+        let num_labels = instructions
+            .iter()
+            .filter(|&x| match x {
+                Instruction::Label(_) => true,
+                _ => false,
+            })
+            .count();
+
+        self.instructions = instructions;
+        self.num_labels = num_labels;
+
+        Ok(true)
     }
 }
 

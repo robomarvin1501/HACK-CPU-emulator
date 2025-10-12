@@ -2,7 +2,7 @@ use imgui::Ui;
 
 use crate::hack_cpu::CPUState;
 
-const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+pub const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Breakpoint {

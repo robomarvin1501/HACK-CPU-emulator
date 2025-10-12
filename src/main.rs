@@ -2,7 +2,7 @@ use crate::hack_cpu::CPUState;
 use crate::hack_gui::HackGUI;
 use core::panic;
 use instructions::Instruction;
-use parser::{parse, MAX_INSTRUCTIONS};
+use parser::MAX_INSTRUCTIONS;
 use std::{env, fs, path::PathBuf, usize};
 mod instructions;
 mod parser;
@@ -24,10 +24,8 @@ const KBD_LOCATION: usize = 24576;
 const INSTRUCTIONS_PER_REFRESH: usize = 200_000;
 
 fn main() {
-    let instructions = read_arg_file();
-
-    let mut state = CPUState::new();
-    let instructions = parse(instructions, &mut state.address_table);
+    let state = CPUState::new();
+    let instructions = [const { Instruction::None }; MAX_INSTRUCTIONS];
 
     let num_labels = instructions
         .iter()

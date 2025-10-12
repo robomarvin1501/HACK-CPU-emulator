@@ -31,6 +31,10 @@ impl CPUState {
         }
     }
 
+    pub fn reset_address_table(self: &mut Self) {
+        self.address_table = symbol_table::SymbolTable::new();
+    }
+
     pub fn interpret(self: &mut Self, instruction: &Instruction) {
         match instruction {
             Instruction::A(a) => self.a_instruction(&a),

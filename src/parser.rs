@@ -1,3 +1,5 @@
+use std::fmt;
+
 use regex::Regex;
 
 use crate::instructions::{Instruction, A, C};
@@ -10,10 +12,20 @@ const VARIABLE_DECLARATION: char = '@';
 
 pub const MAX_INSTRUCTIONS: usize = 32768;
 
+#[derive(Debug)]
+pub enum LineParsingError {
+    InvalidLine(u16, String),
+}
+impl fmt::Display for LineParsingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Invalid line")
+    }
+}
+
 pub fn parse(
     lines: [String; MAX_INSTRUCTIONS],
     address_table: &mut SymbolTable,
-) -> [Instruction; MAX_INSTRUCTIONS] {
+) -> Result<[Instruction; MAX_INSTRUCTIONS], LineParsingError> {
     let whitespace_cleaned_lines = clear_whitespace(lines);
     labels_and_variables(&whitespace_cleaned_lines, address_table);
     let mut parsed_lines: [Instruction; MAX_INSTRUCTIONS] =
@@ -48,14 +60,14 @@ pub fn parse(
             } else {
                 let dest = match address_table.table.get(temp_line[0]) {
                     Some(d) => d,
-                    None => panic!("Line {i} is invalid code: {line}"),
+                    None => return Err(LineParsingError::InvalidLine(i as u16, line.to_owned())),
                 };
                 instruction = Instruction::C(C::new(&dest.to_string(), temp_line[1], temp_line[2]));
             }
             parsed_lines[i - offset] = instruction;
         }
     }
-    parsed_lines
+    Ok(parsed_lines)
 }
 
 fn split_line(line: &String) -> Vec<&str> {
