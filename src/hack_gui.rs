@@ -104,18 +104,9 @@ impl HackGUI {
         Ok(())
     }
 
-    pub fn show_textures(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
-        let [window_width, window_height] = ui.io().display_size;
-        ui.window("CPU Emulator")
-            .size([window_width, window_height], Condition::Always)
-            .position([0.0, 0.0], Condition::Always)
-            .movable(false)
-            .collapsible(false)
-            .resizable(true)
-            .build(|| {
-                ui.columns(2, "control_cols", true);
-                ui.child_window("Controls")
-                    .size([window_width / 2.0, CONTROL_WINDOW_HEIGHT])
+    fn build_control_window(&mut self, ui: &Ui, key: &Option<Key>, window_width: f32) {
+        ui.child_window("Controls")
+                .size([window_width / 2.0, CONTROL_WINDOW_HEIGHT])
                     .build(|| {
                         let fm = ui.io().framerate;
                         ui.text(format!("Framerate: {}", fm));
@@ -215,323 +206,347 @@ impl HackGUI {
                             }
                         }
                     });
-                ui.next_column();
-                ui.child_window("Debug")
-                    .size([window_width / 2.0 , CONTROL_WINDOW_HEIGHT])
-                    .build(|| {
-                        ui.text("Debug");
-                        ui.radio_button(
-                            "A",
-                            &mut self.next_breakpoint,
-                            Some(BreakpointSelector::A),
-                        );
-                        ui.radio_button(
-                            "D",
-                            &mut self.next_breakpoint,
-                            Some(BreakpointSelector::D),
-                        );
-                        ui.radio_button(
-                            "PC",
-                            &mut self.next_breakpoint,
-                            Some(BreakpointSelector::PC),
-                        );
-                        ui.radio_button(
-                            "RAM",
-                            &mut self.next_breakpoint,
-                            Some(BreakpointSelector::RAM),
-                        );
+    }
 
-                        if let Some(bs) = self.next_breakpoint {
-                            match bs {
-                                BreakpointSelector::A => {
-                                    ui.text("A: ");
-                                    ui.same_line();
-                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
-                                    let val = &mut self.adram_value;
-                                    let mut temp = *val as i32;
-                                    if ui.input_int("##input_a", &mut temp).build() {
-                                        *val = temp as _;
-                                    }
-                                }
-                                BreakpointSelector::D => {
-                                    ui.text("D: ");
-                                    ui.same_line();
-                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
-                                    let val = &mut self.adram_value;
-                                    let mut temp = *val as i32;
-                                    if ui.input_int("##input_d", &mut temp).build() {
-                                        *val = temp as _;
-                                    }
-                                }
-                                BreakpointSelector::PC => {
-                                    ui.text("PC: ");
-                                    ui.same_line();
-                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
-                                    let val = &mut self.pcvalue;
-                                    let mut temp = *val as i32;
-                                    if ui.input_int("##input_pc", &mut temp).build() {
-                                        *val = temp as _;
-                                    }
-                                }
-                                BreakpointSelector::RAM => {
-                                    ui.text("RAM: ");
-                                    ui.same_line();
-                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
-                                    let val = &mut self.pcvalue;
-                                    let mut temp = *val as i32;
-                                    if ui.input_int("##input_ram_target", &mut temp).build() {
-                                        *val = temp as _;
-                                    }
-                                    ui.same_line();
-                                    ui.set_next_item_width(DEBUG_BOX_SIZE);
-                                    let val = &mut self.adram_value;
-                                    let mut temp = *val as i32;
-                                    if ui.input_int("##input_ram_value", &mut temp).build() {
-                                        *val = temp as _;
-                                    }
-                                }
-                            }
-                            if ui.button("Add breakpoint") {
-                                match bs {
-                                    BreakpointSelector::A => {
-                                        self.cpu
-                                            .breakpoints
-                                            .insert(Breakpoint::A(self.adram_value));
-                                    }
-                                    BreakpointSelector::D => {
-                                        self.cpu
-                                            .breakpoints
-                                            .insert(Breakpoint::D(self.adram_value));
-                                    }
-                                    BreakpointSelector::PC => {
-                                        self.cpu.breakpoints.insert(Breakpoint::PC(self.pcvalue));
-                                    }
-                                    BreakpointSelector::RAM => {
-                                        self.cpu.breakpoints.insert(Breakpoint::RAM(
-                                            self.pcvalue,
-                                            self.adram_value,
-                                        ));
-                                    }
-                                }
-                                self.adram_value = 0;
-                                self.pcvalue = 0;
+    fn build_debug_window(&mut self, ui: &Ui, window_width: f32) {
+        ui.child_window("Debug")
+            .size([window_width / 2.0, CONTROL_WINDOW_HEIGHT])
+            .build(|| {
+                ui.text("Debug");
+                ui.radio_button("A", &mut self.next_breakpoint, Some(BreakpointSelector::A));
+                ui.radio_button("D", &mut self.next_breakpoint, Some(BreakpointSelector::D));
+                ui.radio_button(
+                    "PC",
+                    &mut self.next_breakpoint,
+                    Some(BreakpointSelector::PC),
+                );
+                ui.radio_button(
+                    "RAM",
+                    &mut self.next_breakpoint,
+                    Some(BreakpointSelector::RAM),
+                );
+
+                if let Some(bs) = self.next_breakpoint {
+                    match bs {
+                        BreakpointSelector::A => {
+                            ui.text("A: ");
+                            ui.same_line();
+                            ui.set_next_item_width(DEBUG_BOX_SIZE);
+                            let val = &mut self.adram_value;
+                            let mut temp = *val as i32;
+                            if ui.input_int("##input_a", &mut temp).build() {
+                                *val = temp as _;
                             }
                         }
-                    });
-                ui.separator();
-
-                ui.columns(3, "main_cols", true);
-                ui.set_column_width(0, RAM_AND_ROM_WIDTH);
-                ui.child_window("ROM")
-                    .child_flags(ChildFlags::BORDERS)
-                    .build(|| {
-                        ui.text("ROM");
-                        let running_ui = ui.begin_disabled(self.running);
-                        let val = &mut self.cpu.pc;
-                        let mut temp = *val as i32;
-                        ui.text("PC: ");
-                        ui.same_line();
-                        if ui.input_int("##pc", &mut temp).build() {
-                            *val = temp as _;
-                        }
-                        let num_cols = 2;
-                        let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
-
-                        let flags = imgui::TableFlags::ROW_BG
-                            | imgui::TableFlags::RESIZABLE
-                            | imgui::TableFlags::BORDERS_H
-                            | imgui::TableFlags::BORDERS_V;
-
-                        if let Some(_t) = ui.begin_table_with_sizing(
-                            "longtable",
-                            num_cols,
-                            flags,
-                            [-1.0, 0.0],
-                            0.0,
-                        ) {
-                            ui.table_setup_column("");
-                            ui.table_setup_column("Instructions");
-
-                            // Freeze first row so headers are visible when scrolling
-                            ui.table_setup_scroll_freeze(num_cols, 1);
-
-                            ui.table_headers_row();
-
-                            let clip = imgui::ListClipper::new(num_rows).begin(ui);
-                            let mut offset = 0;
-                            for row_num in clip.iter() {
-                                ui.table_next_row();
-                                ui.table_set_column_index(0);
-                                if (row_num - offset) as u16 == self.cpu.pc {
-                                    ui.table_set_bg_color(
-                                        TableBgTarget::ROW_BG1,
-                                        ImColor32::from_rgb(100, 100, 0),
-                                    );
-                                }
-                                match self.instructions[row_num as usize] {
-                                    Instruction::Label(_) => {
-                                        offset += 1;
-                                        ui.text("");
-                                        ui.table_set_column_index(1);
-                                        ui.text(format!("{}", self.instructions[row_num as usize]));
-                                    }
-                                    Instruction::A(_) | Instruction::C(_) | Instruction::None => {
-                                        ui.text(format!("{}", row_num - offset));
-                                        ui.table_set_column_index(1);
-                                        ui.text(format!("{}", self.instructions[row_num as usize]));
-                                    }
-                                }
+                        BreakpointSelector::D => {
+                            ui.text("D: ");
+                            ui.same_line();
+                            ui.set_next_item_width(DEBUG_BOX_SIZE);
+                            let val = &mut self.adram_value;
+                            let mut temp = *val as i32;
+                            if ui.input_int("##input_d", &mut temp).build() {
+                                *val = temp as _;
                             }
                         }
-                        running_ui.end();
-                    });
-
-                ui.next_column();
-                ui.set_column_width(1, RAM_AND_ROM_WIDTH);
-                ui.child_window("RAM")
-                    .child_flags(ChildFlags::BORDERS)
-                    .build(|| {
-                        ui.text("RAM");
-                        let running_ui = ui.begin_disabled(self.running);
-                        ui.same_line();
-                        if ui.button("Reset##RAM") {
-                            self.cpu.reset_ram();
+                        BreakpointSelector::PC => {
+                            ui.text("PC: ");
+                            ui.same_line();
+                            ui.set_next_item_width(DEBUG_BOX_SIZE);
+                            let val = &mut self.pcvalue;
+                            let mut temp = *val as i32;
+                            if ui.input_int("##input_pc", &mut temp).build() {
+                                *val = temp as _;
+                            }
                         }
-                        let val = &mut self.cpu.a.0;
-                        let mut temp = *val as i32;
-                        ui.text("A: ");
-                        ui.same_line();
-                        if ui.input_int("##a", &mut temp).build() {
-                            *val = temp as _;
+                        BreakpointSelector::RAM => {
+                            ui.text("RAM: ");
+                            ui.same_line();
+                            ui.set_next_item_width(DEBUG_BOX_SIZE);
+                            let val = &mut self.pcvalue;
+                            let mut temp = *val as i32;
+                            if ui.input_int("##input_ram_target", &mut temp).build() {
+                                *val = temp as _;
+                            }
+                            ui.same_line();
+                            ui.set_next_item_width(DEBUG_BOX_SIZE);
+                            let val = &mut self.adram_value;
+                            let mut temp = *val as i32;
+                            if ui.input_int("##input_ram_value", &mut temp).build() {
+                                *val = temp as _;
+                            }
                         }
-                        let num_cols = 2;
-                        let num_rows = MAX_INSTRUCTIONS as i32;
+                    }
+                    if ui.button("Add breakpoint") {
+                        match bs {
+                            BreakpointSelector::A => {
+                                self.cpu.breakpoints.insert(Breakpoint::A(self.adram_value));
+                            }
+                            BreakpointSelector::D => {
+                                self.cpu.breakpoints.insert(Breakpoint::D(self.adram_value));
+                            }
+                            BreakpointSelector::PC => {
+                                self.cpu.breakpoints.insert(Breakpoint::PC(self.pcvalue));
+                            }
+                            BreakpointSelector::RAM => {
+                                self.cpu
+                                    .breakpoints
+                                    .insert(Breakpoint::RAM(self.pcvalue, self.adram_value));
+                            }
+                        }
+                        self.adram_value = 0;
+                        self.pcvalue = 0;
+                    }
+                }
+            });
+    }
 
-                        let flags = imgui::TableFlags::ROW_BG
-                            | imgui::TableFlags::RESIZABLE
-                            | imgui::TableFlags::BORDERS_H
-                            | imgui::TableFlags::BORDERS_V;
+    fn build_rom_window(&mut self, ui: &Ui) {
+        ui.child_window("ROM")
+            .child_flags(ChildFlags::BORDERS)
+            .build(|| {
+                ui.text("ROM");
+                let running_ui = ui.begin_disabled(self.running);
+                let val = &mut self.cpu.pc;
+                let mut temp = *val as i32;
+                ui.text("PC: ");
+                ui.same_line();
+                if ui.input_int("##pc", &mut temp).build() {
+                    *val = temp as _;
+                }
+                let num_cols = 2;
+                let num_rows = (MAX_INSTRUCTIONS + self.num_labels) as i32;
 
-                        if let Some(_t) = ui.begin_table_with_sizing(
-                            "longtable",
-                            num_cols,
-                            flags,
-                            [-1.0, 0.0],
-                            0.0,
-                        ) {
-                            ui.table_setup_column("");
-                            ui.table_setup_column("Memory");
+                let flags = imgui::TableFlags::ROW_BG
+                    | imgui::TableFlags::RESIZABLE
+                    | imgui::TableFlags::BORDERS_H
+                    | imgui::TableFlags::BORDERS_V;
 
-                            // Freeze first row so headers are visible when scrolling
-                            ui.table_setup_scroll_freeze(num_cols, 1);
+                if let Some(_t) =
+                    ui.begin_table_with_sizing("longtable", num_cols, flags, [-1.0, 0.0], 0.0)
+                {
+                    ui.table_setup_column("");
+                    ui.table_setup_column("Instructions");
 
-                            ui.table_headers_row();
+                    // Freeze first row so headers are visible when scrolling
+                    ui.table_setup_scroll_freeze(num_cols, 1);
 
-                            let clip = imgui::ListClipper::new(num_rows).begin(ui);
-                            for row_num in clip.iter() {
-                                ui.table_next_row();
-                                ui.table_set_column_index(0);
-                                ui.text(format!("{}", row_num));
-                                if !self.running && row_num == self.cpu.a.0 as i32 {
-                                    ui.table_set_bg_color(
-                                        TableBgTarget::ROW_BG1,
-                                        ImColor32::from_rgb(100, 100, 0),
-                                    );
-                                }
+                    ui.table_headers_row();
 
+                    let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                    let mut offset = 0;
+                    for row_num in clip.iter() {
+                        ui.table_next_row();
+                        ui.table_set_column_index(0);
+                        if (row_num - offset) as u16 == self.cpu.pc {
+                            ui.table_set_bg_color(
+                                TableBgTarget::ROW_BG1,
+                                ImColor32::from_rgb(100, 100, 0),
+                            );
+                        }
+                        match self.instructions[row_num as usize] {
+                            Instruction::Label(_) => {
+                                offset += 1;
+                                ui.text("");
                                 ui.table_set_column_index(1);
-                                let val = &mut self.cpu.ram[row_num as usize].0;
-                                let mut temp = *val as i32;
-                                if ui.input_int(format!("##ram{}", row_num), &mut temp).build() {
-                                    *val = temp as _;
-                                }
+                                ui.text(format!("{}", self.instructions[row_num as usize]));
+                            }
+                            Instruction::A(_) | Instruction::C(_) | Instruction::None => {
+                                ui.text(format!("{}", row_num - offset));
+                                ui.table_set_column_index(1);
+                                ui.text(format!("{}", self.instructions[row_num as usize]));
                             }
                         }
-                        running_ui.end();
-                    });
-                ui.next_column();
+                    }
+                }
+                running_ui.end();
+            });
+    }
 
-                let rem_width = ui.content_region_avail()[0];
-                let height = rem_width / SCREEN_RATIO;
-                ui.child_window("Screen pane")
-                    .size([0.0, 0.0])
-                    .child_flags(ChildFlags::BORDERS)
-                    .build(|| {
-                        ui.text("Screen");
+    fn build_ram_window(&mut self, ui: &Ui) {
+        ui.child_window("RAM")
+            .child_flags(ChildFlags::BORDERS)
+            .build(|| {
+                ui.text("RAM");
+                let running_ui = ui.begin_disabled(self.running);
+                ui.same_line();
+                if ui.button("Reset##RAM") {
+                    self.cpu.reset_ram();
+                }
+                let val = &mut self.cpu.a.0;
+                let mut temp = *val as i32;
+                ui.text("A: ");
+                ui.same_line();
+                if ui.input_int("##a", &mut temp).build() {
+                    *val = temp as _;
+                }
+                let num_cols = 2;
+                let num_rows = MAX_INSTRUCTIONS as i32;
 
-                        if let Some(sti) = self.screen_texture_id {
-                            if let Some(st) = renderer.textures().get_mut(sti) {
-                                let screen_contents = hack_to_rgba(
-                                    &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
-                                );
-                                let raw = RawImage2d {
-                                    data: Cow::Owned(screen_contents),
-                                    width: SCREEN_WIDTH as u32,
-                                    height: SCREEN_HEIGHT as u32,
-                                    format: ClientFormat::U8U8U8,
-                                };
-                                st.texture.write(
-                                    glium::Rect {
-                                        left: 0,
-                                        bottom: 0,
-                                        width: SCREEN_WIDTH as u32,
-                                        height: SCREEN_HEIGHT as u32,
-                                    },
-                                    raw,
-                                );
-                            }
-                            Image::new(sti, [rem_width, height]).build(ui);
-                        };
-                        if self.running {
-                            if let Some(keyboard_press) = key {
-                                if let Some(name) = get_keyname(keyboard_press) {
-                                    ui.text(format!("Keyboard: {}", name));
-                                }
-                            } else {
-                                ui.text("Keyboard: ");
-                            }
-                        } else {
-                            ui.text("Keyboard: ");
+                let flags = imgui::TableFlags::ROW_BG
+                    | imgui::TableFlags::RESIZABLE
+                    | imgui::TableFlags::BORDERS_H
+                    | imgui::TableFlags::BORDERS_V;
+
+                if let Some(_t) =
+                    ui.begin_table_with_sizing("longtable", num_cols, flags, [-1.0, 0.0], 0.0)
+                {
+                    ui.table_setup_column("");
+                    ui.table_setup_column("Memory");
+
+                    // Freeze first row so headers are visible when scrolling
+                    ui.table_setup_scroll_freeze(num_cols, 1);
+
+                    ui.table_headers_row();
+
+                    let clip = imgui::ListClipper::new(num_rows).begin(ui);
+                    for row_num in clip.iter() {
+                        ui.table_next_row();
+                        ui.table_set_column_index(0);
+                        ui.text(format!("{}", row_num));
+                        if !self.running && row_num == self.cpu.a.0 as i32 {
+                            ui.table_set_bg_color(
+                                TableBgTarget::ROW_BG1,
+                                ImColor32::from_rgb(100, 100, 0),
+                            );
                         }
-                        let running_ui = ui.begin_disabled(self.running);
-                        let val = &mut self.cpu.d.0;
+
+                        ui.table_set_column_index(1);
+                        let val = &mut self.cpu.ram[row_num as usize].0;
                         let mut temp = *val as i32;
-                        ui.text("D: ");
-                        ui.same_line();
-                        if ui.input_int("##d", &mut temp).build() {
+                        if ui.input_int(format!("##ram{}", row_num), &mut temp).build() {
                             *val = temp as _;
                         }
-                        running_ui.end();
+                    }
+                }
+                running_ui.end();
+            });
+    }
 
-                        ui.child_window("Breakpoints")
-                            .child_flags(ChildFlags::BORDERS)
-                            .build(|| {
-                                ui.text("Breakpoints");
-                                let mut to_remove: Vec<Breakpoint> = vec![];
-                                for breakpoint in self.cpu.breakpoints.iter() {
-                                    if breakpoint.display(&ui, &self.cpu) {
-                                        to_remove.push(*breakpoint);
-                                    }
-                                }
-                                for breakpoint in to_remove {
-                                    self.cpu.breakpoints.remove(&breakpoint);
-                                }
-                            })
-                    });
-                if let Some(e) = &self.program_error {
-                    match e {
-                        LineParsingError::InvalidLine(line_number, line) => {
-                        ui.window("Error")
+    fn build_screen(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
+        let rem_width = ui.content_region_avail()[0];
+        let height = rem_width / SCREEN_RATIO;
+        ui.child_window("Screen pane")
+            .size([0.0, 0.0])
+            .child_flags(ChildFlags::BORDERS)
+            .build(|| {
+                ui.text("Screen");
+
+                if let Some(sti) = self.screen_texture_id {
+                    if let Some(st) = renderer.textures().get_mut(sti) {
+                        let screen_contents = hack_to_rgba(
+                            &self.cpu.ram[SCREEN_LOCATION..SCREEN_LOCATION + SCREEN_LENGTH],
+                        );
+                        let raw = RawImage2d {
+                            data: Cow::Owned(screen_contents),
+                            width: SCREEN_WIDTH as u32,
+                            height: SCREEN_HEIGHT as u32,
+                            format: ClientFormat::U8U8U8,
+                        };
+                        st.texture.write(
+                            glium::Rect {
+                                left: 0,
+                                bottom: 0,
+                                width: SCREEN_WIDTH as u32,
+                                height: SCREEN_HEIGHT as u32,
+                            },
+                            raw,
+                        );
+                    }
+                    Image::new(sti, [rem_width, height]).build(ui);
+                };
+                if self.running {
+                    if let Some(keyboard_press) = key {
+                        if let Some(name) = get_keyname(keyboard_press) {
+                            ui.text(format!("Keyboard: {}", name));
+                        }
+                    } else {
+                        ui.text("Keyboard: ");
+                    }
+                } else {
+                    ui.text("Keyboard: ");
+                }
+                let running_ui = ui.begin_disabled(self.running);
+                let val = &mut self.cpu.d.0;
+                let mut temp = *val as i32;
+                ui.text("D: ");
+                ui.same_line();
+                if ui.input_int("##d", &mut temp).build() {
+                    *val = temp as _;
+                }
+                running_ui.end();
+
+                ui.child_window("Breakpoints")
+                    .child_flags(ChildFlags::BORDERS)
+                    .build(|| {
+                        ui.text("Breakpoints");
+                        let mut to_remove: Vec<Breakpoint> = vec![];
+                        for breakpoint in self.cpu.breakpoints.iter() {
+                            if breakpoint.display(&ui, &self.cpu) {
+                                to_remove.push(*breakpoint);
+                            }
+                        }
+                        for breakpoint in to_remove {
+                            self.cpu.breakpoints.remove(&breakpoint);
+                        }
+                    })
+            });
+    }
+
+    fn build_error_window(
+        &self,
+        ui: &Ui,
+        error: &LineParsingError,
+        window_width: f32,
+        window_height: f32,
+    ) {
+        ui.window("Error")
             .size([0.0, 0.0], Condition::Always)
             .position([window_width / 2.0, window_height / 2.0], Condition::Always)
             .movable(false)
             .collapsible(false)
             .resizable(true)
-                            .build(|| {
-                        ui.text_colored(RED, format!("ERROR READING PROGRAM: Error in program at line {}: {}", line_number, line));
-                                }
-                        );}
-                    };
+            .build(|| {
+                match error {
+                    LineParsingError::InvalidLine(line_number, line) => ui.text_colored(
+                        RED,
+                        format!(
+                            "ERROR READING PROGRAM: Error in program at line {}: {}",
+                            line_number, line
+                        ),
+                    ),
+                };
+            });
+    }
+
+    pub fn show_textures(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
+        let [window_width, window_height] = ui.io().display_size;
+        ui.window("CPU Emulator")
+            .size([window_width, window_height], Condition::Always)
+            .position([0.0, 0.0], Condition::Always)
+            .movable(false)
+            .collapsible(false)
+            .resizable(true)
+            .build(|| {
+                ui.columns(2, "control_cols", true);
+                self.build_control_window(ui, key, window_width);
+
+                ui.next_column();
+                self.build_debug_window(ui, window_width);
+                ui.separator();
+
+                ui.columns(3, "main_cols", true);
+                ui.set_column_width(0, RAM_AND_ROM_WIDTH);
+                self.build_rom_window(ui);
+
+                ui.next_column();
+                ui.set_column_width(1, RAM_AND_ROM_WIDTH);
+                self.build_ram_window(ui);
+                ui.next_column();
+
+                self.build_screen(ui, renderer, key);
+
+                if let Some(e) = &self.program_error {
+                    self.build_error_window(ui, e, window_width, window_height);
                 }
             });
     }
