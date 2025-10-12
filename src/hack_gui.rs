@@ -1,6 +1,6 @@
 use crate::debug::{Breakpoint, BreakpointSelector, RED};
 use crate::instructions::Instruction;
-use crate::parser::{parse, LineParsingError};
+use crate::parser::{parse, LineParsingError, MAX_RAM};
 use crate::{CPUState, ASM_FILE_EXTENSION, SCREEN_RATIO};
 use crate::{
     INSTRUCTIONS_PER_REFRESH, KBD_LOCATION, MAX_INSTRUCTIONS, SCREEN_HEIGHT, SCREEN_LENGTH,
@@ -53,6 +53,7 @@ const F10_KEY: i16 = 150;
 const F11_KEY: i16 = 151;
 const F12_KEY: i16 = 152;
 
+/// Represents the GUI for the HACK CPU, and stores the [CPUState] for executing programs.
 pub struct HackGUI {
     pub screen_texture_id: Option<TextureId>,
     pub cpu: CPUState,
@@ -67,6 +68,7 @@ pub struct HackGUI {
 }
 
 impl HackGUI {
+    /// Create a new [HackGUI]. This should be done in accordance with the imgui startup functions.
     pub fn new(
         screen_texture_id: Option<TextureId>,
         cpu: CPUState,
@@ -86,6 +88,8 @@ impl HackGUI {
             last_dir: env::current_dir().unwrap(),
         }
     }
+
+    /// Registers the screen texture that is needed to display the contents of the RAM.
     pub fn register_textures<F>(
         &mut self,
         gl_ctx: &F,
@@ -104,6 +108,8 @@ impl HackGUI {
         Ok(())
     }
 
+    /// Builds the window that displays the control buttons, such as step, stop, and opening a
+    /// program.
     fn build_control_window(&mut self, ui: &Ui, key: &Option<Key>, window_width: f32) {
         ui.child_window("Controls")
                 .size([window_width / 2.0, CONTROL_WINDOW_HEIGHT])
@@ -208,6 +214,7 @@ impl HackGUI {
                     });
     }
 
+    /// Builds the window that creates [Breakpoint]s in the CPU.
     fn build_debug_window(&mut self, ui: &Ui, window_width: f32) {
         ui.child_window("Debug")
             .size([window_width / 2.0, CONTROL_WINDOW_HEIGHT])
@@ -300,6 +307,7 @@ impl HackGUI {
             });
     }
 
+    /// Builds the window that displays the currently executing program.
     fn build_rom_window(&mut self, ui: &Ui) {
         ui.child_window("ROM")
             .child_flags(ChildFlags::BORDERS)
@@ -362,6 +370,7 @@ impl HackGUI {
             });
     }
 
+    /// Builds the window that displays the current contents of the RAM.
     fn build_ram_window(&mut self, ui: &Ui) {
         ui.child_window("RAM")
             .child_flags(ChildFlags::BORDERS)
@@ -380,7 +389,7 @@ impl HackGUI {
                     *val = temp as _;
                 }
                 let num_cols = 2;
-                let num_rows = MAX_INSTRUCTIONS as i32;
+                let num_rows = MAX_RAM as i32;
 
                 let flags = imgui::TableFlags::ROW_BG
                     | imgui::TableFlags::RESIZABLE
@@ -422,6 +431,9 @@ impl HackGUI {
             });
     }
 
+    /// Builds the screen pane. This rewrites the contents of the screen texture. Note that this
+    /// additionally creates the pane that displays the breakpoints, and what key is currently
+    /// pressed.
     fn build_screen(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
         let rem_width = ui.content_region_avail()[0];
         let height = rem_width / SCREEN_RATIO;
@@ -492,6 +504,8 @@ impl HackGUI {
             });
     }
 
+    /// This builds the window appears when there is an error in the source file, and briefly
+    /// describes the error, along with where to find it.
     fn build_error_window(
         &self,
         ui: &Ui,
@@ -518,6 +532,7 @@ impl HackGUI {
             });
     }
 
+    /// Calls the various build functions, and places them in the correct layout on the screen.
     pub fn show_textures(&mut self, ui: &Ui, renderer: &mut Renderer, key: &Option<Key>) {
         let [window_width, window_height] = ui.io().display_size;
         ui.window("CPU Emulator")
@@ -551,6 +566,8 @@ impl HackGUI {
             });
     }
 
+    /// Reads a program source code from a file, and loads it into the CPU, or displays the error
+    /// window if there is a mistake within.
     pub fn new_program(
         self: &mut Self,
         instructions: [String; MAX_INSTRUCTIONS],
@@ -574,6 +591,8 @@ impl HackGUI {
     }
 }
 
+/// This function takes the contents of the RAM, and uses it to create a texture to display the
+/// screen.
 fn generate_screen_texture<F>(cpu: &CPUState, gl_ctx: &F) -> Result<Texture, Box<dyn Error>>
 where
     F: Facade,
@@ -600,6 +619,8 @@ where
     return Ok(texture);
 }
 
+/// Given the slice of the RAM where the screen data is stored, it returns a framebuffer in RGBA of
+/// the screen.
 pub fn hack_to_rgba(screen: &[Wrapping<i16>]) -> Vec<u8> {
     // Preallocate fully: each pixel → 3 bytes (RGB)
     let mut framebuffer = vec![255u8; SCREEN_WIDTH * SCREEN_HEIGHT * 3];
@@ -628,6 +649,8 @@ pub fn hack_to_rgba(screen: &[Wrapping<i16>]) -> Vec<u8> {
     framebuffer
 }
 
+/// Given a key from winit, it returns the not quite ASCII keycode as designated by the HACK
+/// specification.
 fn get_keycode(key: &Key) -> Wrapping<i16> {
     match key.to_owned() {
         Key::Character(c) => {
@@ -684,6 +707,7 @@ fn get_keycode(key: &Key) -> Wrapping<i16> {
     }
 }
 
+/// Given a key, returns the name of the key.
 fn get_keyname(key: &Key) -> Option<String> {
     match key.to_owned() {
         Key::Character(c) => {
