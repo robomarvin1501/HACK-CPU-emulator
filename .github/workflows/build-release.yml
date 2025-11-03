@@ -1,7 +1,5 @@
 name: Build and Release
 
-# .github/workflows/release.yml
-
 on:
   release:
     types: [created]
@@ -18,20 +16,40 @@ jobs:
           - target: x86_64-pc-windows-gnu
             archive: zip
           - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
+            archive: tar.gz
           - target: x86_64-apple-darwin
             archive: zip
+
     steps:
-      - uses: actions/checkout@master
-      - name: Update rust 
-        run:
-          sudo apt-get update && sudo apt-get upgrade -y;
-          rustup default stable;
-          rustup update;
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.5
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross
+        run: cargo install cross --locked
+
+      - name: Build release binary
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Package artifacts
+        run: |
+          mkdir -p dist
+          cd target/${{ matrix.target }}/release
+          app_name=$(basename $(find . -maxdepth 1 -type f -perm -111 | head -n 1))
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            zip -r "../../../dist/${app_name}-${{ matrix.target }}.zip" "$app_name"
+          else
+            tar czf "../../../dist/${app_name}-${{ matrix.target }}.tar.gz" "$app_name"
+          fi
+        shell: bash
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          RUSTTARGET: ${{ matrix.target }}
-          ARCHIVE_TYPES: ${{ matrix.archive }}
