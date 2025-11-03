@@ -26,8 +26,8 @@ jobs:
       - name: Update rust 
         run:
           sudo apt-get update && sudo apt-get upgrade -y;
-          rustup default stable
-          rustup update
+          rustup default stable;
+          rustup update;
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.5
         env:
